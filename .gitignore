@@ -7,13 +7,7 @@
 *.dll
 *.so
 *.dylib
-
-# Build directory
-build/
-
-# Project specific binaries
-claude_analysis
-claude_analysis-*
+/build/
 
 # Test binary, built with `go test -c`
 *.test

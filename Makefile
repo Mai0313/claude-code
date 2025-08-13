@@ -12,24 +12,24 @@ all: build
 .PHONY: build
 build:
 	mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BIN_NAME) claude_analysis.go
+	go build -o $(BUILD_DIR)/$(BIN_NAME) ./cmd/claude_analysis
 
 # Build for multiple platforms
 .PHONY: build-all
 build-all:
 	mkdir -p $(BUILD_DIR)
 	# Build for current platform first
-	go build -o $(BUILD_DIR)/$(BIN_NAME) claude_analysis.go
+	go build -o $(BUILD_DIR)/$(BIN_NAME) ./cmd/claude_analysis
 	# Linux AMD64
-	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 claude_analysis.go
+	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 ./cmd/claude_analysis
 	# Linux ARM64
-	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 claude_analysis.go
+	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 ./cmd/claude_analysis
 	# Windows AMD64
-	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe claude_analysis.go
+	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
 	# macOS AMD64
-	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 claude_analysis.go
+	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
 	# macOS ARM64 (Apple Silicon)
-	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 claude_analysis.go
+	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 ./cmd/claude_analysis
 
 # Clean build artifacts
 .PHONY: clean

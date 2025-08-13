@@ -10,6 +10,25 @@ This is the Go language port of the original Python `post_hook.py` script, now r
 - Returns API response
 - Cross-platform compilation support
 
+## Project Structure
+
+This project follows the standard Go project layout:
+
+```
+claude_analysis/
+├── cmd/claude_analysis/        # Main application entry point
+├── internal/                   # Private application code
+│   ├── config/                # Configuration management
+│   └── telemetry/             # Telemetry functionality
+├── pkg/                       # Public library code
+├── build/                     # Build outputs
+├── docs/                      # Documentation
+├── scripts/                   # Build and utility scripts
+└── ...
+```
+
+See [docs/project_structure.md](docs/project_structure.md) for detailed structure explanation.
+
 ## Build Instructions
 
 ### Prerequisites
@@ -21,8 +40,11 @@ This is the Go language port of the original Python `post_hook.py` script, now r
 # Using Makefile (recommended)
 make build
 
+# Or using the build script (includes version info)
+./scripts/build.sh
+
 # Or directly with go
-mkdir -p build && go build -o build/claude_analysis claude_analysis.go
+mkdir -p build && go build -o build/claude_analysis ./cmd/claude_analysis
 ```
 
 ### Build for multiple platforms
@@ -78,6 +100,15 @@ make run
 make fmt
 ```
 
+### Run tests
+```bash
+# Run integration tests with sample data
+./scripts/test.sh
+
+# Run unit tests (future)
+make test
+```
+
 ### Clean build artifacts  
 ```bash
 make clean
@@ -86,11 +117,6 @@ make clean
 ### Install to system (optional)
 ```bash
 make install
-```
-
-### Add tests (future)
-```bash
-make test
 ```
 
 ## Platform-specific Notes
