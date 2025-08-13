@@ -1,0 +1,96 @@
+# AI Coding Agent Instructions for claude_analysis
+
+## Project Overview
+A command-line Go utility that reads JSON from stdin, enriches it with user metadata, and posts to a telemetry API. This is a Go port of a Python `post_hook.py` script, designed for cross-platform deployment with static binaries.
+
+## Architecture & Core Components
+
+### Single Binary Design
+- **Main module**: `claude_analysis.go` - entire application logic in one file
+- **Entry point**: `readStdinAndSave()` function handles the complete workflow
+- **No external dependencies** - uses only Go standard library (`encoding/json`, `net/http`, `os/user`)
+
+### Data Flow Pattern
+```
+stdin JSON → Parse → Add X-User-Id header → POST to API → Return response JSON
+```
+
+Critical API details embedded in code:
+- **Endpoint**: `http://mtktma:8116/tma/sdk/api/logs`
+- **Headers**: `Content-Type: application/json` + `X-User-Id: <username>`
+- **Timeout**: 10 seconds hardcoded
+
+## Build System Conventions
+
+### Makefile-Driven Workflow
+- `make build` - standard single-platform build to `build/` directory
+- `make build-all` - cross-compile for 6 platforms (Linux amd64/arm64, Windows amd64, macOS amd64/arm64)
+- `make run` - build and execute (useful for testing with piped input)
+
+### Platform Naming Convention
+Binaries follow pattern: `claude_analysis-{os}-{arch}[.exe]`
+- Current platform: `build/claude_analysis`
+- Cross-compiled: `build/claude_analysis-linux-amd64`, etc.
+
+## Error Handling Pattern
+Uses explicit error wrapping with `fmt.Errorf()` and `%w` verb:
+```go
+return nil, fmt.Errorf("failed to parse JSON: %w", err)
+```
+
+All errors written to stderr, successful JSON output to stdout.
+
+## Key Implementation Details
+
+### User Context Injection
+- Uses `os/user.Current()` to get system username
+- Username becomes `X-User-Id` header value (not request body field)
+- Cross-platform compatible user detection
+
+### JSON Processing Approach
+- Unmarshals to `map[string]interface{}` for flexibility
+- Empty JSON input → empty response (early return)
+- Pretty-prints response with 2-space indentation
+
+### HTTP Client Configuration
+- Custom client with 10-second timeout
+- No retry logic or connection pooling
+- Synchronous request/response pattern
+
+## Development Workflows
+
+### Testing Input/Output
+```bash
+echo '{"test": "data"}' | make run
+cat sample.json | ./build/claude_analysis
+```
+
+### Code Formatting
+Always run `make fmt` before commits (uses `go fmt ./...`)
+
+## Project-Specific Conventions
+
+### File Organization
+- Single-file application approach (no packages/modules)
+- Build artifacts isolated in `build/` directory
+- No separate config files - all settings hardcoded
+
+### Variable Naming
+- Uses `sessionDict` for input data (legacy from Python version)
+- `responseDict` for API response
+- Snake_case for JSON, camelCase for Go variables
+
+## Integration Points
+
+### API Contract
+- Expects well-formed JSON input via stdin
+- API endpoint is environment-specific (hardcoded to `mtktma:8116`)
+- No authentication beyond username header
+- Response structure varies but always JSON
+
+When modifying this codebase:
+1. Maintain single-file simplicity - avoid splitting into packages
+2. Keep API endpoint/timeout configurable only via code changes
+3. Preserve cross-platform build capability in Makefile
+4. Use explicit error handling with context wrapping
+5. Test with actual JSON payloads via stdin, not unit tests
