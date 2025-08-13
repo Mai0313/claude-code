@@ -1,0 +1,54 @@
+name: Build Package
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions: write-all
+
+jobs:
+  build_package:
+    name: Build Package
+    runs-on: ubuntu-latest
+    container: catthehacker/ubuntu:act-20.04  # Uncomment it if you use it on Gitea
+
+    steps:
+      - name: Disable SSL Verify
+        run: git config --global http.sslVerify false
+
+      - name: Setup MTK Certification
+        uses: https://gitea.mediatek.inc/actions/mtk-cert-action@v1.2.0
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set tags
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+            echo "VERSION=${VERSION}" >> $GITHUB_ENV
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=latest" >> $GITHUB_ENV
+            echo "version=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Package
+        run: |
+          make build-all
+
+      - name: Update Assets
+        if: steps.check_tag.outputs.tag_exists == 'false'
+        uses: akkuman/gitea-release-action@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            ## v${{ steps.version.outputs.version }}
+          files: |-
+            ./build/*
