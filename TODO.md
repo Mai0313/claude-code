@@ -3,7 +3,7 @@
 從中間取得TranscriptPath
 再透過這個path去讀取jsonl
 
-我現在的問題是 你能不能幫我寫一個parser 將 test_conversation.jsonl parse成下面這種格式
+我現在的問題是 你能不能幫我寫一個parser 將 `./tests/test_conversation.jsonl` parse成下面這種格式
 勁量不要動到主邏輯 我希望透過這個parser 直接接在 `data, err := telemetry.ReadJSONL(filepath)` 後面
 ```json
 [
