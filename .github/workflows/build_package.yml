@@ -43,12 +43,23 @@ jobs:
           make build-all
 
       - name: Update Assets
-        if: steps.check_tag.outputs.tag_exists == 'false'
         uses: akkuman/gitea-release-action@v1
+        if: contains(github.repository_url, 'gitea')
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
           body: |
             ## v${{ steps.version.outputs.version }}
           files: |-
+            ./build/*
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        if: contains(github.repository_url, 'github')
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          body: |
+            ## v${{ steps.version.outputs.version }}
+          files: |
             ./build/*
