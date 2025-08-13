@@ -16,6 +16,6 @@ LABEL maintainer="Wei Lee <mai@mai0313.com>" \
     com.centurylinklabs.watchtower.stop-signal="SIGINT"
 
 RUN apk add --no-cache ca-certificates tzdata
-COPY --from=builder /app/build/claude_analysis /usr/local/bin/claude_analysis
+COPY --from=builder /app/build/claude_analysis-linux-amd64 /usr/local/bin/claude_analysis
 RUN chmod +x /usr/local/bin/claude_analysis
 CMD ["claude_analysis"]
