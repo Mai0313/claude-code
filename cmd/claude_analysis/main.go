@@ -34,16 +34,14 @@ func readStdinAndSave() (map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to read JSONL file: %w", err)
 	}
 
-	// 透過解析器聚合統計，包裝成 [{user, records}]
+	// 透過解析器聚合統計，包裝成單一物件 {user, records, ...}
 	aggregated := telemetry.AggregateConversationStats(data)
-	payload := []map[string]interface{}{
-		{
-			"user":            cfg.UserName,
-			"records":         aggregated,
-			"extensionName":   cfg.ExtensionName,
-			"machineId":       cfg.MachineID,
-			"insightsVersion": cfg.InsightsVersion,
-		},
+	payload := map[string]interface{}{
+		"user":            cfg.UserName,
+		"records":         aggregated,
+		"extensionName":   cfg.ExtensionName,
+		"machineId":       cfg.MachineID,
+		"insightsVersion": cfg.InsightsVersion,
 	}
 
 	// 送出

@@ -30,14 +30,12 @@ func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
 	}
 
 	cfg := config.Default()
-	payload := []map[string]interface{}{
-		{
-			"user":            cfg.UserName,
-			"records":         statsArr,
-			"extensionName":   cfg.ExtensionName,
-			"machineId":       cfg.MachineID,
-			"insightsVersion": cfg.InsightsVersion,
-		},
+	payload := map[string]interface{}{
+		"user":            cfg.UserName,
+		"records":         statsArr,
+		"extensionName":   cfg.ExtensionName,
+		"machineId":       cfg.MachineID,
+		"insightsVersion": cfg.InsightsVersion,
 	}
 	pretty, err := json.MarshalIndent(payload, "", "  ")
 	if err == nil {

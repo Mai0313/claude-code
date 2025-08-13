@@ -85,6 +85,16 @@ echo "{'transcript_path':'/abs/path/to/tests/test_conversation.jsonl'}" | ./buil
 make run
 ```
 
+### Test commands
+
+```bash
+# Run all tests
+make test
+
+# Print full transformed payload using the sample JSONL
+make test-verbose
+```
+
 ## Key Differences from Python Version
 
 1. **Error Handling**: More explicit error handling and reporting
