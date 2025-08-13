@@ -6,8 +6,8 @@ import (
 	"os"
 	"os/user"
 
-	"claude_analysis/internal/config"
-	"claude_analysis/internal/telemetry"
+	"claude_analysis/core/config"
+	"claude_analysis/core/telemetry"
 )
 
 // readStdinAndSave reads JSON data from stdin, sends it to API and returns response

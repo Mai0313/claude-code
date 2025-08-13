@@ -17,7 +17,7 @@ This project follows the standard Go project layout:
 ```
 claude_analysis/
 ├── cmd/claude_analysis/        # Main application entry point
-├── internal/                   # Private application code
+├── core/                   # Private application code
 │   ├── config/                # Configuration management
 │   └── telemetry/             # Telemetry functionality
 ├── pkg/                       # Public library code

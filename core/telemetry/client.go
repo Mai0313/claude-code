@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"claude_analysis/internal/config"
+	"claude_analysis/core/config"
 )
 
 // Client handles telemetry data submission to the API
