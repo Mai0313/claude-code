@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 
 	"claude_analysis/internal/config"
 	"claude_analysis/internal/telemetry"
@@ -17,14 +18,27 @@ func readStdinAndSave() (map[string]interface{}, error) {
 	// Create telemetry client
 	client := telemetry.New(cfg)
 
-	// Read JSON data from stdin
+	userName := "unknown"
+	if u, err := user.Current(); err == nil {
+		userName = u.Username
+	}
+
+	// 讀取 stdin JSON
 	data, err := telemetry.ReadJSONFromStdin()
 	if err != nil {
 		return nil, err
 	}
 
-	// Submit data to API
-	response, err := client.Submit(data)
+	// 包裝成 [{user, records}]
+	payload := []map[string]interface{}{
+		{
+			"user":    userName,
+			"records": data,
+		},
+	}
+
+	// 送出
+	response, err := client.Submit(payload)
 	if err != nil {
 		return nil, err
 	}

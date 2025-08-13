@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os/user"
 
 	"claude_analysis/internal/config"
 )
@@ -28,21 +27,15 @@ func New(cfg *config.Config) *Client {
 }
 
 // Submit sends telemetry data to the API and returns the response
-func (c *Client) Submit(data map[string]interface{}) (map[string]interface{}, error) {
-	// Get current user name
-	currentUser, err := user.Current()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current user: %w", err)
-	}
-	userName := currentUser.Username
-
+func (c *Client) Submit(data interface{}) (map[string]interface{}, error) {
 	// Check if data is empty
-	if len(data) == 0 {
+	// 支援傳入 array 或 map
+	var jsonData []byte
+	var err error
+	if data == nil {
 		return make(map[string]interface{}), nil
 	}
-
-	// Prepare HTTP request
-	jsonData, err := json.Marshal(data)
+	jsonData, err = json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
@@ -55,7 +48,6 @@ func (c *Client) Submit(data map[string]interface{}) (map[string]interface{}, er
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-Id", userName)
 
 	// Send request
 	resp, err := c.httpClient.Do(req)
