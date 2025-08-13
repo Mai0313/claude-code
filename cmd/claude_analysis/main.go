@@ -33,19 +33,21 @@ func readStdinAndSave() (map[string]interface{}, error) {
 }
 
 func main() {
+	fmt.Println("[LOG] claude_analysis 啟動...")
 	inputData, err := readStdinAndSave()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
 		os.Exit(1)
 	}
 
-	// Print the result (optional, similar to Python version's return value)
+	fmt.Println("[LOG] readStdinAndSave 執行成功，準備輸出結果...")
 	if len(inputData) > 0 {
 		jsonOutput, err := json.MarshalIndent(inputData, "", "  ")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error marshaling output: %v\n", err)
+			fmt.Fprintf(os.Stderr, "[ERROR] marshaling output: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Println(string(jsonOutput))
 	}
+	fmt.Println("[LOG] claude_analysis 執行完成")
 }
