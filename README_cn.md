@@ -19,8 +19,14 @@ make build
 # 基本測試
 echo '{"key": "value"}' | ./build/claude_analysis
 
-# 讀取 JSONL 並彙整（stdin 為 Python 字典格式）
+# Mode = STOP（預設）：stdin 輸入 Python 字典含 transcript_path，程式讀檔並彙整
 echo "{'transcript_path':'/絕對路徑/tests/test_conversation.jsonl'}" | ./build/claude_analysis
+
+# Mode = POST_TOOL：stdin 直接輸入一行或多行 JSON（對話中的任意子集合），程式直接彙整
+MODE=POST_TOOL ./build/claude_analysis <<'EOF'
+{"type":"assistant","uuid":"u1","cwd":"/tmp/ws","sessionId":"s1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
+{"parentUuid":"u1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"a.txt","content":"hello"}}
+EOF
 ```
 
 ## 聚合 Parser 說明

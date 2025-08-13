@@ -12,7 +12,8 @@ A command-line Go utility that reads JSON from stdin, enriches it with user meta
 
 ### Data Flow Pattern
 ```
-stdin JSON → Parse transcript_path → Read JSONL → Aggregate stats → Add X-User-Id header → POST to API → Return response JSON
+STOP mode: stdin dict → parse transcript_path → read JSONL → aggregate → POST → return JSON
+POST_TOOL mode: stdin JSON lines → aggregate directly (no file read) → POST → return JSON
 ```
 
 Critical API details embedded in code:
@@ -51,7 +52,8 @@ All errors written to stderr, successful JSON output to stdout.
 - Unmarshals to `map[string]interface{}` for flexibility
 - Empty JSON input → empty response (early return)
 - Pretty-prints response with 2-space indentation
-- Reads JSONL transcript via `telemetry.ReadJSONL(path)` then aggregates with `telemetry.AggregateConversationStats(records)`
+- Reads JSONL transcript via `telemetry.ReadJSONL(path)` then aggregates with `telemetry.AggregateConversationStats(records)` (STOP mode)
+- Alternatively aggregates directly from stdin JSON lines when `MODE=POST_TOOL`
 
 #### Aggregation Output Schema
 `records` is now an array containing one `ApiConversationStats` object with fields:
@@ -72,6 +74,11 @@ echo '{"test": "data"}' | make run
 cat sample.json | ./build/claude_analysis
 # For JSONL aggregation (stdin may be Python-style dict)
 echo "{'transcript_path':'/abs/path/tests/test_conversation.jsonl'}" | ./build/claude_analysis
+# For POST_TOOL mode (stdin is JSON lines)
+MODE=POST_TOOL ./build/claude_analysis <<'EOF'
+{"type":"assistant","uuid":"u1","cwd":"/tmp/ws","sessionId":"s1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
+{"parentUuid":"u1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"a.txt","content":"hello"}}
+EOF
 ```
 
 ### Code Formatting

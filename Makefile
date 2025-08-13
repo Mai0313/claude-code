@@ -61,11 +61,11 @@ fmt:
 # Test (if you add tests later)
 .PHONY: test
 test:
-	go test -v ./...
+	go test -cover -v ./...
 
 .PHONY: test-verbose
 test-verbose:
-	go test -v ./tests -run TestParser_FromTestConversationJSONL_PrintsFullPayload -count=1
+	go test -cover -v ./tests -run TestParser_FromTestConversationJSONL_PrintsFullPayload -count=1
 
 # Show help
 .PHONY: help

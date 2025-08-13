@@ -78,8 +78,15 @@ echo '{"key": "value"}' | ./build/claude_analysis
 # Or from a file
 cat data.json | ./build/claude_analysis
 
-# For conversation JSONL aggregation (stdin contains a Python-style dict)
+# Mode = STOP (default): stdin provides Python-style dict with transcript_path; program reads JSONL file
 echo "{'transcript_path':'/abs/path/to/tests/test_conversation.jsonl'}" | ./build/claude_analysis
+
+# Mode = POST_TOOL: stdin provides one or multiple JSON lines (any subset of a transcript)
+# Each non-empty line must be a JSON object; the program aggregates directly without reading a file
+MODE=POST_TOOL ./build/claude_analysis <<'EOF'
+{"type":"assistant","uuid":"u1","cwd":"/tmp/ws","sessionId":"s1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
+{"parentUuid":"u1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"a.txt","content":"hello"}}
+EOF
 
 # Using make run (builds and runs)
 make run

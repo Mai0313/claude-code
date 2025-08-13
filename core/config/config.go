@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"os/user"
 	"time"
 
@@ -14,6 +15,7 @@ type Config struct {
 	ExtensionName   string    `json:"extension_name"`
 	MachineID       string    `json:"machine_id"`
 	InsightsVersion string    `json:"insights_version"`
+	Mode            string    `json:"mode"`
 }
 
 // APIConfig holds API-related configuration
@@ -34,6 +36,9 @@ func Default() *Config {
 		userName = u.Username
 	}
 
+	// Load mode from environment or .env file
+	mode := loadModeFromEnv()
+
 	return &Config{
 		API: APIConfig{
 			Endpoint: "http://mtktma:8116/tma/sdk/api/logs",
@@ -43,5 +48,72 @@ func Default() *Config {
 		ExtensionName:   "Claude-Code",
 		MachineID:       machineID,
 		InsightsVersion: "v0.0.1",
+		Mode:            mode,
 	}
+}
+
+// loadModeFromEnv loads MODE from process env, allowing an optional .env file in CWD.
+func loadModeFromEnv() string {
+	// Best effort: read .env and export keys to process env
+	if data, err := os.ReadFile(".env"); err == nil {
+		lines := string(data)
+		start := 0
+		for i := 0; i <= len(lines); i++ {
+			if i == len(lines) || lines[i] == '\n' || lines[i] == '\r' {
+				line := lines[start:i]
+				start = i + 1
+				line = trimSpace(line)
+				if line == "" || line[0] == '#' {
+					continue
+				}
+				eq := -1
+				for j := 0; j < len(line); j++ {
+					if line[j] == '=' {
+						eq = j
+						break
+					}
+				}
+				if eq <= 0 {
+					continue
+				}
+				key := trimSpace(line[:eq])
+				val := trimSpace(line[eq+1:])
+				val = trimQuotes(val)
+				if key != "" {
+					_ = os.Setenv(key, val)
+				}
+			}
+		}
+	}
+
+	mode := os.Getenv("MODE")
+	if mode == "" {
+		mode = os.Getenv("mode")
+	}
+	if mode == "" {
+		mode = "STOP"
+	}
+	return mode
+}
+
+func trimSpace(s string) string {
+	// minimal space trim to avoid importing strings
+	start := 0
+	for start < len(s) && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	end := len(s)
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
+}
+
+func trimQuotes(s string) string {
+	if len(s) >= 2 {
+		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
+			return s[1 : len(s)-1]
+		}
+	}
+	return s
 }

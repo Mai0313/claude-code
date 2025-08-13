@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"claude_analysis/core/config"
 	"claude_analysis/core/telemetry"
@@ -18,24 +20,45 @@ func readStdinAndSave() (map[string]interface{}, error) {
 	// Create telemetry client
 	client := telemetry.New(cfg)
 
-	// 讀取 stdin JSON
+	// 讀取 stdin
 	stdinData, err := io.ReadAll(os.Stdin)
-	// convert to string
 	if err != nil {
 		return nil, fmt.Errorf("failed to read from stdin: %w", err)
 	}
-	filepath, err := telemetry.ExtractTranscriptPath(string(stdinData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract transcript path: %w", err)
-	}
-	fmt.Printf("[LOG] 讀取到的資料: %s\n", filepath)
-	data, err := telemetry.ReadJSONL(filepath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read JSONL file: %w", err)
+
+	var aggregated []telemetry.ApiConversationStats
+	if strings.EqualFold(cfg.Mode, "POST_TOOL") {
+		// 支援直接吃任意一行 JSONL（或整段文字含多行），逐行解析、彙整
+		reader := bufio.NewScanner(strings.NewReader(string(stdinData)))
+		raw := make([]map[string]interface{}, 0)
+		for reader.Scan() {
+			line := strings.TrimSpace(reader.Text())
+			if line == "" {
+				continue
+			}
+			var obj map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &obj); err == nil {
+				raw = append(raw, obj)
+			}
+		}
+		if len(raw) == 0 {
+			return nil, fmt.Errorf("no valid JSON lines found in POST_TOOL mode")
+		}
+		aggregated = telemetry.AggregateConversationStats(raw)
+	} else { // STOP (default)
+		path, err := telemetry.ExtractTranscriptPath(string(stdinData))
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract transcript path: %w", err)
+		}
+		fmt.Printf("[LOG] 讀取到的資料: %s\n", path)
+		data, err := telemetry.ReadJSONL(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read JSONL file: %w", err)
+		}
+		aggregated = telemetry.AggregateConversationStats(data)
 	}
 
 	// 透過解析器聚合統計，包裝成單一物件 {user, records, ...}
-	aggregated := telemetry.AggregateConversationStats(data)
 	payload := map[string]interface{}{
 		"user":            cfg.UserName,
 		"records":         aggregated,
