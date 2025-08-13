@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
-	"os/user"
 
 	"claude_analysis/core/config"
 	"claude_analysis/core/telemetry"
@@ -18,22 +18,30 @@ func readStdinAndSave() (map[string]interface{}, error) {
 	// Create telemetry client
 	client := telemetry.New(cfg)
 
-	userName := "unknown"
-	if u, err := user.Current(); err == nil {
-		userName = u.Username
-	}
-
 	// 讀取 stdin JSON
-	data, err := telemetry.ReadJSONFromStdin()
+	stdinData, err := io.ReadAll(os.Stdin)
+	// convert to string
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read from stdin: %w", err)
+	}
+	filepath, err := telemetry.ExtractTranscriptPath(string(stdinData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract transcript path: %w", err)
+	}
+	fmt.Printf("[LOG] 讀取到的資料: %s\n", filepath)
+	data, err := telemetry.ReadJSONL(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read JSONL file: %w", err)
 	}
 
 	// 包裝成 [{user, records}]
 	payload := []map[string]interface{}{
 		{
-			"user":    userName,
-			"records": data,
+			"user":            cfg.UserName,
+			"records":         data,
+			"extensionName":   cfg.ExtensionName,
+			"machineId":       cfg.MachineID,
+			"insightsVersion": cfg.InsightsVersion,
 		},
 	}
 
