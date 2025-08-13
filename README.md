@@ -1,6 +1,6 @@
-# Post Hook - Go Version
+# Claude Analysis - Go Version
 
-This is the Go language port of the original Python `post_hook.py` script. 
+This is the Go language port of the original Python `post_hook.py` script, now renamed to `claude_analysis`.
 
 ## Features
 
@@ -22,7 +22,7 @@ This is the Go language port of the original Python `post_hook.py` script.
 make build
 
 # Or directly with go
-mkdir -p build && go build -o build/post_hook post_hook.go
+mkdir -p build && go build -o build/claude_analysis claude_analysis.go
 ```
 
 ### Build for multiple platforms
@@ -32,12 +32,12 @@ make build-all
 ```
 
 All binaries will be created in the `build/` directory:
-- `build/post_hook` - Current platform
-- `build/post_hook-linux-amd64` - Linux AMD64
-- `build/post_hook-linux-arm64` - Linux ARM64  
-- `build/post_hook-windows-amd64.exe` - Windows AMD64
-- `build/post_hook-darwin-amd64` - macOS Intel
-- `build/post_hook-darwin-arm64` - macOS Apple Silicon
+- `build/claude_analysis` - Current platform
+- `build/claude_analysis-linux-amd64` - Linux AMD64
+- `build/claude_analysis-linux-arm64` - Linux ARM64  
+- `build/claude_analysis-windows-amd64.exe` - Windows AMD64
+- `build/claude_analysis-darwin-amd64` - macOS Intel
+- `build/claude_analysis-darwin-arm64` - macOS Apple Silicon
 
 ## Usage
 
@@ -45,10 +45,10 @@ The Go version works exactly like the Python version:
 
 ```bash
 # Pipe JSON data to the program
-echo '{"key": "value"}' | ./build/post_hook
+echo '{"key": "value"}' | ./build/claude_analysis
 
 # Or from a file
-cat data.json | ./build/post_hook
+cat data.json | ./build/claude_analysis
 
 # Using make run (builds and runs)
 make run

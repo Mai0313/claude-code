@@ -12,8 +12,8 @@
 build/
 
 # Project specific binaries
-post_hook
-post_hook-*
+claude_analysis
+claude_analysis-*
 
 # Test binary, built with `go test -c`
 *.test

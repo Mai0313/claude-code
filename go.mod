@@ -1,3 +1,3 @@
-module post-hook
+module claude_analysis
 
 go 1.21
