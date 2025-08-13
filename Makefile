@@ -63,6 +63,10 @@ fmt:
 test:
 	go test -v ./...
 
+.PHONY: test-verbose
+test-verbose:
+	go test -v ./tests -run TestParser_FromTestConversationJSONL_PrintsFullPayload -count=1
+
 # Show help
 .PHONY: help
 help:

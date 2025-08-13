@@ -10,6 +10,12 @@ This is the Go language port of the original Python `post_hook.py` script, now r
 - Returns API response
 - Cross-platform compilation support
 
+### JSONL Conversation Aggregation
+
+- Parses a JSONL conversation transcript and aggregates it into a compact stats record
+- Drop-in parser runs right after reading JSONL without changing main logic
+- Aggregated payload shape matches your telemetry API expectations
+
 ## Project Structure
 
 This project follows the standard Go project layout:
@@ -72,6 +78,9 @@ echo '{"key": "value"}' | ./build/claude_analysis
 # Or from a file
 cat data.json | ./build/claude_analysis
 
+# For conversation JSONL aggregation (stdin contains a Python-style dict)
+echo "{'transcript_path':'/abs/path/to/tests/test_conversation.jsonl'}" | ./build/claude_analysis
+
 # Using make run (builds and runs)
 make run
 ```
@@ -83,6 +92,45 @@ make run
 3. **Performance**: Compiled binary with better performance
 4. **Cross-platform**: Easy compilation for multiple platforms
 5. **Dependencies**: No external dependencies (uses only Go standard library)
+
+## JSONL Parser Details
+
+- Entry points: `telemetry.ReadJSONL(path)` then `telemetry.AggregateConversationStats(records)`
+- Output schema appended under `records` in the request payload:
+
+```json
+{
+  "user": "<current_user>",
+  "records": [
+    {
+      "totalUniqueFiles": 2,
+      "totalWriteLines": 48,
+      "totalReadCharacters": 12243,
+      "totalWriteCharacters": 1516,
+      "totalDiffCharacters": 12115,
+      "writeToFileDetails": [],
+      "readFileDetails": [],
+      "applyDiffDetails": [],
+      "toolCallCounts": {"Read": 1, "Write": 1},
+      "taskId": "...",
+      "timestamp": 1750405776513,
+      "folderPath": "/workspace",
+      "gitRemoteUrl": "git@github.com:org/repo.git"
+    }
+  ],
+  "extensionName": "Claude-Code",
+  "machineId": "...",
+  "insightsVersion": "v0.0.1"
+}
+```
+
+### How it works
+
+- Associates `assistant` tool_use events with subsequent `user.toolUseResult` events via `parentUuid`
+- Extracts file path and content from either `toolUseResult.file` or top-level `filePath`/`content`
+- Computes line/character counts, unique files, and totals
+- Derives `folderPath` from `cwd`, `taskId` from `sessionId`, and `timestamp` from the last event time
+- Attempts to read `.git/config` at `cwd` to populate `gitRemoteUrl` (best effort)
 
 ## API Details
 

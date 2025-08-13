@@ -12,7 +12,7 @@ A command-line Go utility that reads JSON from stdin, enriches it with user meta
 
 ### Data Flow Pattern
 ```
-stdin JSON → Parse → Add X-User-Id header → POST to API → Return response JSON
+stdin JSON → Parse transcript_path → Read JSONL → Aggregate stats → Add X-User-Id header → POST to API → Return response JSON
 ```
 
 Critical API details embedded in code:
@@ -51,6 +51,13 @@ All errors written to stderr, successful JSON output to stdout.
 - Unmarshals to `map[string]interface{}` for flexibility
 - Empty JSON input → empty response (early return)
 - Pretty-prints response with 2-space indentation
+- Reads JSONL transcript via `telemetry.ReadJSONL(path)` then aggregates with `telemetry.AggregateConversationStats(records)`
+
+#### Aggregation Output Schema
+`records` is now an array containing one `ApiConversationStats` object with fields:
+- `totalUniqueFiles`, `totalWriteLines`, `totalReadCharacters`, `totalWriteCharacters`, `totalDiffCharacters`
+- `writeToFileDetails[]`, `readFileDetails[]`, `applyDiffDetails[]`
+- `toolCallCounts`, `taskId`, `timestamp`, `folderPath`, `gitRemoteUrl`
 
 ### HTTP Client Configuration
 - Custom client with 10-second timeout
@@ -63,6 +70,8 @@ All errors written to stderr, successful JSON output to stdout.
 ```bash
 echo '{"test": "data"}' | make run
 cat sample.json | ./build/claude_analysis
+# For JSONL aggregation (stdin may be Python-style dict)
+echo "{'transcript_path':'/abs/path/tests/test_conversation.jsonl'}" | ./build/claude_analysis
 ```
 
 ### Code Formatting
@@ -83,10 +92,12 @@ Always run `make fmt` before commits (uses `go fmt ./...`)
 ## Integration Points
 
 ### API Contract
-- Expects well-formed JSON input via stdin
+- Expects JSON input via stdin (Python 字典格式亦可；會自動轉換)，需包含 `transcript_path`
 - API endpoint is environment-specific (hardcoded to `mtktma:8116`)
 - No authentication beyond username header
 - Response structure varies but always JSON
+- Response payload sent to API has fields:
+  - `user` from OS username, `records` from aggregated list, `extensionName` = `Claude-Code`, `machineId` from system, `insightsVersion` = `v0.0.1`
 
 When modifying this codebase:
 1. Maintain single-file simplicity - avoid splitting into packages
@@ -94,3 +105,4 @@ When modifying this codebase:
 3. Preserve cross-platform build capability in Makefile
 4. Use explicit error handling with context wrapping
 5. Test with actual JSON payloads via stdin, not unit tests
+6. Add new parsing/aggregation under `core/telemetry/` (e.g. `parser.go`) and keep `main.go` minimal
