@@ -57,8 +57,5 @@ jobs:
         uses: akkuman/gitea-release-action@v1
         with:
           tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          body: |
-            ## v${{ steps.version.outputs.version }}
           files: |-
             ./build/*
