@@ -7,6 +7,9 @@ on:
 
 permissions: write-all
 
+env:
+  GOPROXY: http://oa-mirror.mediatek.inc/repository/golang
+
 jobs:
   build_package:
     name: Build Package
