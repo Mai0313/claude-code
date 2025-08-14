@@ -8,6 +8,7 @@ on:
 permissions: write-all
 
 env:
+  NODE_TLS_REJECT_UNAUTHORIZED: 0
   GOPROXY: http://oa-mirror.mediatek.inc/repository/golang
 
 jobs:
