@@ -30,10 +30,6 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Version
-        run:
-          echo ${{ github.ref_name }}
-
       - name: Setup go
         id: setup-go
         uses: actions/setup-go@v5
