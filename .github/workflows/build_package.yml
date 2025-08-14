@@ -30,17 +30,9 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set tags
-        id: version
-        run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/}
-            echo "VERSION=${VERSION}" >> $GITHUB_ENV
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=latest" >> $GITHUB_ENV
-            echo "version=latest" >> $GITHUB_OUTPUT
-          fi
+      - name: Get Version
+        run:
+          echo ${{ github.ref_name }}
 
       - name: Setup go
         id: setup-go
@@ -51,7 +43,6 @@ jobs:
 
       - name: Build Package
         run: |
-          echo ${{ steps.version.outputs.version }}
           make build-all
 
       - name: Release Drafter
@@ -69,12 +60,12 @@ jobs:
         uses: orhun/git-cliff-action@v4
         id: git-cliff
         with:
-          args: --unreleased --tag ${{ steps.version.outputs.version }} --output CHANGELOG.md
+          args: --unreleased --tag ${{ github.ref_name }} --output CHANGELOG.md
           github_token: ${{ secrets.GH_TOKEN }}
 
       - name: Update Assets
         uses: akkuman/gitea-release-action@v1
         with:
-          tag_name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ github.ref_name }}
           files: |-
             ./build/*
