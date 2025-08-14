@@ -51,7 +51,26 @@ jobs:
 
       - name: Build Package
         run: |
+          echo ${{ steps.version.outputs.version }}
           make build-all
+
+      - name: Release Drafter
+        uses: https://gitea.mediatek.inc/DS906659/release-action@v1.0.0
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          emoji: true
+          capitalize: true
+          contributors: true
+          dry: false
+
+      - name: Generate a changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          args: --unreleased --tag ${{ steps.version.outputs.version }} --output CHANGELOG.md
+          github_token: ${{ secrets.GH_TOKEN }}
 
       - name: Update Assets
         uses: akkuman/gitea-release-action@v1

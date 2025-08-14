@@ -7,6 +7,7 @@
 3. 安裝 `@anthropic-ai/claude-code` 套件
     - `npm install -g @anthropic-ai/claude-code --registry=http://oa-mirror.mediatek.inc/repository/npm`
     - 透過 `claude --version` 來確認是否安裝成功
+5. 透過 
 4. 安裝成功以後將這個config寫入到 `~/.claude/settings.json`
 ```json
 {
