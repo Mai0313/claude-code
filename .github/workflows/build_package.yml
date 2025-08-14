@@ -52,13 +52,6 @@ jobs:
           contributors: true
           dry: false
 
-      - name: Generate a changelog
-        uses: orhun/git-cliff-action@v4
-        id: git-cliff
-        with:
-          args: --unreleased --tag ${{ github.ref_name }} --output CHANGELOG.md
-          github_token: ${{ secrets.GH_TOKEN }}
-
       - name: Update Assets
         uses: akkuman/gitea-release-action@v1
         with:
