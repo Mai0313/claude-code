@@ -38,6 +38,13 @@ jobs:
             echo "version=latest" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup go
+        id: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
       - name: Build Package
         run: |
           make build-all
