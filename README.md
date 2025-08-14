@@ -151,7 +151,7 @@ make test-verbose
 
 ## API Details
 
-- **Endpoint**: `http://mtktma:8116/tma/sdk/api/logs`
+- **Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs`
 - **Method**: POST
 - **Headers**: 
   - `Content-Type: application/json`

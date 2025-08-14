@@ -41,7 +41,7 @@ func Default() *Config {
 
 	return &Config{
 		API: APIConfig{
-			Endpoint: "http://mtktma:8116/tma/sdk/api/logs",
+			Endpoint: "https://gaia.mediatek.inc/o11y/upload_locs",
 			Timeout:  10 * time.Second,
 		},
 		UserName:        userName,

@@ -17,7 +17,7 @@ POST_TOOL mode: stdin JSON lines → aggregate directly (no file read) → POST 
 ```
 
 Critical API details embedded in code:
-- **Endpoint**: `http://mtktma:8116/tma/sdk/api/logs`
+- **Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs`
 - **Headers**: `Content-Type: application/json` + `X-User-Id: <username>`
 - **Timeout**: 10 seconds hardcoded
 
