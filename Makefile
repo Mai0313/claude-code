@@ -3,16 +3,18 @@
 # Build directory
 BUILD_DIR := build
 BIN_NAME := claude_analysis
+INSTALLER_NAME := installer
 
 # Default target
 .PHONY: all
-all: build
+all: package-all
 
 # Build the application
 .PHONY: build
 build:
 	@mkdir -p $(BUILD_DIR)
 	go build -o $(BUILD_DIR)/$(BIN_NAME) ./cmd/claude_analysis
+	go build -o $(BUILD_DIR)/$(INSTALLER_NAME) ./cmd/installer
 
 # Build for multiple platforms
 .PHONY: build-all build_linux_amd64 build_linux_arm64 build_windows_amd64 build_darwin_amd64 build_darwin_arm64
@@ -21,22 +23,61 @@ build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_darwin_
 build_linux_amd64:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 ./cmd/claude_analysis
+	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 ./cmd/installer
 
 build_linux_arm64:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 ./cmd/claude_analysis
+	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 ./cmd/installer
 
 build_windows_amd64:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
+	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe ./cmd/installer
 
 build_darwin_amd64:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
+	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 ./cmd/installer
 
 build_darwin_arm64:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 ./cmd/claude_analysis
+	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 ./cmd/installer
+
+# Packaging to Claude-Code-Installer-{platform}.zip
+.PHONY: package-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_darwin_amd64 package_darwin_arm64
+package-all: build-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_darwin_amd64 package_darwin_arm64
+
+package_linux_amd64: build_linux_amd64
+	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 $(BUILD_DIR)/claude_analysis
+	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 $(BUILD_DIR)/installer
+	@cd $(BUILD_DIR) && zip -q -9 "Claude-Code-Installer-linux-amd64.zip" claude_analysis installer && rm -f claude_analysis installer
+	@rm -f $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64
+
+package_linux_arm64: build_linux_arm64
+	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 $(BUILD_DIR)/claude_analysis
+	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 $(BUILD_DIR)/installer
+	@cd $(BUILD_DIR) && zip -q -9 "Claude-Code-Installer-linux-arm64.zip" claude_analysis installer && rm -f claude_analysis installer
+	@rm -f $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64
+
+package_windows_amd64: build_windows_amd64
+	@cp $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe $(BUILD_DIR)/claude_analysis.exe
+	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe $(BUILD_DIR)/installer.exe
+	@cd $(BUILD_DIR) && zip -q -9 "Claude-Code-Installer-windows-amd64.zip" claude_analysis.exe installer.exe && rm -f claude_analysis.exe installer.exe
+	@rm -f $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe
+
+package_darwin_amd64: build_darwin_amd64
+	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 $(BUILD_DIR)/claude_analysis
+	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 $(BUILD_DIR)/installer
+	@cd $(BUILD_DIR) && zip -q -9 "Claude-Code-Installer-darwin-amd64.zip" claude_analysis installer && rm -f claude_analysis installer
+	@rm -f $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64
+
+package_darwin_arm64: build_darwin_arm64
+	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 $(BUILD_DIR)/claude_analysis
+	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 $(BUILD_DIR)/installer
+	@cd $(BUILD_DIR) && zip -q -9 "Claude-Code-Installer-darwin-arm64.zip" claude_analysis installer && rm -f claude_analysis installer
+	@rm -f $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64
 
 # Clean build artifacts
 .PHONY: clean

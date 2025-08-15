@@ -39,6 +39,7 @@ jobs:
       - name: Build Package
         run: |
           make build-all
+          make package-all
 
       - name: Release Drafter
         uses: https://gitea.mediatek.inc/DS906659/release-action@v1.0.0
