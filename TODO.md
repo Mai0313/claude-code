@@ -22,6 +22,9 @@
   - https://mlop-azure-gateway.mediatek.inc
   - https://mlop-azure-rddmz.mediatek.inc
 
+假設最一開始 `claude-code` 是透過 http://oa-mirror.mediatek.inc/repository/npm 安裝, `ANTHROPIC_BEDROCK_BASE_URL` 就要用 https://mlop-azure-gateway.mediatek.inc
+反之, `claude-code` 如果是透過 http://swrd-mirror.mediatek.inc/repository/npm 安裝, `ANTHROPIC_BEDROCK_BASE_URL` 就要用 https://mlop-azure-rddmz.mediatek.inc
+
 - `~/.claude/claude_analysis-linux-amd64` 取決於作業系統
 
 > 所以 `settings.json` 可能要參考下方的範例來動態生成
