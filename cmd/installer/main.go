@@ -1,8 +1,7 @@
 package main
 
 import (
-	"archive/zip"
-	"bytes"
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -34,8 +33,14 @@ type Hook struct {
 type HookAction = Hook
 
 func main() {
-	if err := run(); err != nil {
+	err := run()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "installer error:", err)
+	} else {
+		fmt.Println("Installation completed successfully.")
+	}
+	pauseIfInteractive()
+	if err != nil {
 		os.Exit(1)
 	}
 }
@@ -49,7 +54,7 @@ func run() error {
 			fmt.Println("Node.js not found. Please download and install Node.js LTS from:")
 			fmt.Println("  https://nodejs.org/dist/v22.18.0/node-v22.18.0-arm64.msi")
 			fmt.Println("After installation, re-run this installer.")
-			return nil
+			return errors.New("node.js not installed; user action required")
 		case "darwin":
 			if err := installNodeDarwin(); err != nil {
 				return fmt.Errorf("failed to install Node.js on macOS: %w", err)
@@ -80,8 +85,22 @@ func run() error {
 		return err
 	}
 
-	fmt.Println("Installation completed successfully.")
 	return nil
+}
+
+// pauseIfInteractive waits for Enter when stdin is a TTY so users can read output before the window closes.
+func pauseIfInteractive() {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return
+	}
+	if (fi.Mode() & os.ModeCharDevice) == 0 {
+		// Not a terminal (piped or redirected); don't block
+		return
+	}
+	fmt.Print("\nPress Enter to exit...")
+	r := bufio.NewReader(os.Stdin)
+	_, _ = r.ReadString('\n')
 }
 
 func isCommandAvailable(name string) bool {
@@ -229,13 +248,9 @@ func installClaudeAnalysisBinary() (string, error) {
 	}
 	destPath := filepath.Join(targetDir, destName)
 
-	// Prefer move (rename) to match "move" requirement; fallback to copy when cross-filesystem
-	if err := os.Rename(srcPath, destPath); err != nil {
-		if copyErr := copyFile(srcPath, destPath, 0o755); copyErr != nil {
-			return "", fmt.Errorf("failed to install claude_analysis to %s: %w", destPath, copyErr)
-		}
-		// remove original if copy succeeded
-		_ = os.Remove(srcPath)
+	// Copy the binary to destination and keep the original
+	if err := copyFile(srcPath, destPath, 0o755); err != nil {
+		return "", fmt.Errorf("failed to install claude_analysis to %s: %w", destPath, err)
 	}
 	fmt.Println("Installed claude_analysis to:", destPath)
 	return destPath, nil
@@ -284,10 +299,38 @@ func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
 		}
 	}
 
-	// Hook command with tilde path and platform suffix
+	// Decide target paths: prefer managed system path if writable; else fallback to user-level
+	managedSettingsPath, managedBinDir := managedPaths()
+	useManaged := false
+	if managedSettingsPath != "" {
+		if err := os.MkdirAll(filepath.Dir(managedSettingsPath), 0o755); err == nil {
+			// try a small write test by writing settings later; keep a flag
+			useManaged = true
+		}
+	}
+
+	// Compute desired hook path and optionally copy binary into managed directory
 	hookPath := fmt.Sprintf("~/.claude/claude_analysis-%s", platformSuffix())
 	if runtime.GOOS == "windows" {
 		hookPath += ".exe"
+	}
+	if useManaged && managedBinDir != "" {
+		// Destination binary name mirrors platform suffix
+		destName := fmt.Sprintf("claude_analysis-%s", platformSuffix())
+		if runtime.GOOS == "windows" {
+			destName += ".exe"
+		}
+		systemBin := filepath.Join(managedBinDir, destName)
+		if err := os.MkdirAll(managedBinDir, 0o755); err == nil {
+			if err := copyFile(installedBinaryPath, systemBin, 0o755); err == nil {
+				// Use system path for hook; quote on macOS to survive space in "Application Support"
+				if runtime.GOOS == "darwin" {
+					hookPath = fmt.Sprintf("'%s'", systemBin)
+				} else {
+					hookPath = systemBin
+				}
+			}
+		}
 	}
 
 	settings := Settings{
@@ -318,6 +361,16 @@ func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
+	// Try writing managed-settings.json first if allowed
+	if useManaged && managedSettingsPath != "" {
+		if err := os.WriteFile(managedSettingsPath, data, 0o644); err == nil {
+			fmt.Println("Wrote managed settings:", managedSettingsPath)
+			return nil
+		}
+		// If writing failed, fall through to user-level
+	}
+
+	// Fallback to user-level settings.json
 	homeDir, _ := os.UserHomeDir()
 	targetDir := filepath.Join(homeDir, ".claude")
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
@@ -329,6 +382,26 @@ func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
 	}
 	fmt.Println("Wrote settings:", target)
 	return nil
+}
+
+// managedPaths returns (settingsFilePath, binDir) for system-managed configuration by OS.
+// Returns empty strings when OS is unsupported.
+func managedPaths() (string, string) {
+	switch runtime.GOOS {
+	case "darwin":
+		dir := filepath.Join("/Library", "Application Support", "ClaudeCode")
+		return filepath.Join(dir, "managed-settings.json"), dir
+	case "linux":
+		dir := filepath.Join("/etc", "claude-code")
+		return filepath.Join(dir, "managed-settings.json"), dir
+	case "windows":
+		// Use ProgramData for system-wide state
+		// Note: filepath.Join on Windows will use backslashes when built on Windows; we construct literal path here
+		dir := `C:\\ProgramData\\ClaudeCode`
+		return dir + `\\managed-settings.json`, dir
+	default:
+		return "", ""
+	}
 }
 
 func checkReachable(rawURL string, timeout time.Duration) error {
@@ -385,19 +458,4 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	return nil
 }
 
-// Unused but handy: create zip buffer for potential future embedding
-func zipBytes(name string, content []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-	f, err := zw.Create(name)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := f.Write(content); err != nil {
-		return nil, err
-	}
-	if err := zw.Close(); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
+// (no-op: removed unused zipBytes helper)

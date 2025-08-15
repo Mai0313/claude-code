@@ -38,7 +38,6 @@ jobs:
 
       - name: Build Package
         run: |
-          make build-all
           make package-all
 
       - name: Release Drafter
