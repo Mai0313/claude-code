@@ -1,191 +1,73 @@
-# Claude Analysis - Go Version
+# Claude Code Installer
 
-This is the Go language port of the original Python `post_hook.py` script, now renamed to `claude_analysis`.
+A simple installer that helps you set up Claude Code with telemetry analytics for your development workflow.
 
-## Features
+## What does this installer do?
 
-- Reads JSON data from standard input
-- Gets current user information  
-- Sends data to HTTP API endpoint
-- Returns API response
-- Cross-platform compilation support
+This installer will automatically:
+1. **Install Node.js** (if not present) - Required for Claude Code to run
+2. **Install Claude Code CLI** - The main application
+3. **Set up analytics integration** - Tracks your coding activity for insights
+4. **Configure everything automatically** - No manual configuration needed
 
-### JSONL Conversation Aggregation
+## How to use
 
-- Parses a JSONL conversation transcript and aggregates it into a compact stats record
-- Drop-in parser runs right after reading JSONL without changing main logic
-- Aggregated payload shape matches your telemetry API expectations
+### Step 1: Download
+Download the latest installer package from:
+https://gitea.mediatek.inc/IT-GAIA/claude-code-monitor/releases
 
-## Project Structure
+### Step 2: Extract and Run
+1. Extract the downloaded zip file
+2. Open a terminal/command prompt in the extracted folder
+3. Run the installer:
+   - **Linux/macOS**: `./installer`
+   - **Windows**: `installer.exe`
 
-This project follows the standard Go project layout:
+### Step 3: Follow the prompts
+The installer will guide you through the setup process and display progress messages.
 
-```
-claude_analysis/
-├── cmd/claude_analysis/        # Main application entry point
-├── core/                   # Private application code
-│   ├── config/                # Configuration management
-│   └── telemetry/             # Telemetry functionality
-├── pkg/                       # Public library code
-├── build/                     # Build outputs
-├── docs/                      # Documentation
-├── scripts/                   # Build and utility scripts
-└── ...
-```
+## Important for Windows Users
 
-See [docs/project_structure.md](docs/project_structure.md) for detailed structure explanation.
+**⚠️ Windows users must install Node.js manually first!**
 
-## Build Instructions
+If you don't have Node.js installed, the installer will:
+1. Show you the direct download link for Node.js
+2. Exit so you can install it
+3. Ask you to run the installer again after Node.js is installed
 
-### Prerequisites
-- Go 1.21 or later installed
-- Make (optional, for using Makefile)
+**Quick steps for Windows:**
+1. Download Node.js from the link provided by the installer
+2. Install the Node.js MSI package
+3. Restart your command prompt
+4. Run the installer again
 
-### Build for current platform
-```bash
-# Using Makefile (recommended)
-make build
+## System Requirements
 
-# Or using the build script (includes version info)
-./scripts/build.sh
+- **Operating System**: Windows, macOS, or Linux
+- **Node.js**: LTS version (will be installed automatically on macOS/Linux)
+- **Internet connection**: Required for downloading components
 
-# Or directly with go
-mkdir -p build && go build -o build/claude_analysis ./cmd/claude_analysis
-```
+## What gets installed where?
 
-### Build for multiple platforms
-```bash
-# Build for all supported platforms
-make build-all
-```
+After successful installation, you'll find:
+- Claude Code CLI available globally (try `claude --version`)
+- Configuration files in your home directory under `.claude/`
+- Analytics component ready to track your development activity
 
-All binaries will be created in the `build/` directory:
-- `build/claude_analysis` - Current platform
-- `build/claude_analysis-linux-amd64` - Linux AMD64
-- `build/claude_analysis-linux-arm64` - Linux ARM64  
-- `build/claude_analysis-windows-amd64.exe` - Windows AMD64
-- `build/claude_analysis-darwin-amd64` - macOS Intel
-- `build/claude_analysis-darwin-arm64` - macOS Apple Silicon
+## Troubleshooting
 
-## Usage
+**Problem**: `claude --version` doesn't work after installation
+**Solution**: Restart your terminal or add npm's global bin directory to your PATH
 
-The Go version works exactly like the Python version:
+**Problem**: Installation fails on the first try
+**Solution**: The installer automatically retries with backup servers - just wait for it to complete
 
-```bash
-# Pipe JSON data to the program
-echo '{"key": "value"}' | ./build/claude_analysis
+**Problem**: Need to reinstall or update
+**Solution**: You can safely run the installer multiple times - it won't break anything
 
-# Or from a file
-cat data.json | ./build/claude_analysis
+## Getting Help
 
-# Mode = STOP (default): stdin provides Python-style dict with transcript_path; program reads JSONL file
-echo "{'transcript_path':'/abs/path/to/tests/test_conversation.jsonl'}" | ./build/claude_analysis
-
-# Mode = POST_TOOL: stdin provides one or multiple JSON lines (any subset of a transcript)
-# Each non-empty line must be a JSON object; the program aggregates directly without reading a file
-MODE=POST_TOOL ./build/claude_analysis <<'EOF'
-{"type":"assistant","uuid":"u1","cwd":"/tmp/ws","sessionId":"s1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
-{"parentUuid":"u1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"a.txt","content":"hello"}}
-EOF
-
-# Using make run (builds and runs)
-make run
-```
-
-### Test commands
-
-```bash
-# Run all tests
-make test
-
-# Print full transformed payload using the sample JSONL
-make test-verbose
-```
-
-## Key Differences from Python Version
-
-1. **Error Handling**: More explicit error handling and reporting
-2. **Typing**: Strong static typing instead of Python's dynamic typing
-3. **Performance**: Compiled binary with better performance
-4. **Cross-platform**: Easy compilation for multiple platforms
-5. **Dependencies**: No external dependencies (uses only Go standard library)
-
-## JSONL Parser Details
-
-- Entry points: `telemetry.ReadJSONL(path)` then `telemetry.AggregateConversationStats(records)`
-- Output schema appended under `records` in the request payload:
-
-```json
-{
-  "user": "<current_user>",
-  "records": [
-    {
-      "totalUniqueFiles": 2,
-      "totalWriteLines": 48,
-      "totalReadCharacters": 12243,
-      "totalWriteCharacters": 1516,
-      "totalDiffCharacters": 12115,
-      "writeToFileDetails": [],
-      "readFileDetails": [],
-      "applyDiffDetails": [],
-      "toolCallCounts": {"Read": 1, "Write": 1},
-      "taskId": "...",
-      "timestamp": 1750405776513,
-      "folderPath": "/workspace",
-      "gitRemoteUrl": "git@github.com:org/repo.git"
-    }
-  ],
-  "extensionName": "Claude-Code",
-  "machineId": "...",
-  "insightsVersion": "v0.0.1"
-}
-```
-
-### How it works
-
-- Associates `assistant` tool_use events with subsequent `user.toolUseResult` events via `parentUuid`
-- Extracts file path and content from either `toolUseResult.file` or top-level `filePath`/`content`
-- Computes line/character counts, unique files, and totals
-- Derives `folderPath` from `cwd`, `taskId` from `sessionId`, and `timestamp` from the last event time
-- Attempts to read `.git/config` at `cwd` to populate `gitRemoteUrl` (best effort)
-
-## API Details
-
-- **Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs`
-- **Method**: POST
-- **Headers**: 
-  - `Content-Type: application/json`
-  - `X-User-Id: <current_username>`
-- **Timeout**: 10 seconds
-
-## Development
-
-### Format code
-```bash
-make fmt
-```
-
-### Run tests
-```bash
-# Run integration tests with sample data
-./scripts/test.sh
-
-# Run unit tests (future)
-make test
-```
-
-### Clean build artifacts  
-```bash
-make clean
-```
-
-### Install to system (optional)
-```bash
-make install
-```
-
-## Platform-specific Notes
-
-- **Linux**: Uses standard user lookup
-- **Windows**: Compatible with Windows user system
-- **macOS**: Works on both Intel and Apple Silicon Macs
+If you encounter issues:
+1. Make sure you have internet connectivity
+2. Try running the installer as administrator (Windows) or with `sudo` (macOS/Linux) for system-wide installation
+3. Check that Node.js is properly installed with `node --version`
