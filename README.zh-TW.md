@@ -1,16 +1,31 @@
-# Claude Code 安裝程式
+# Claude Code CLI 使用說明
 
-一個簡單的安裝工具，協助您設定 Claude Code 和開發活動分析功能。
+[English](README.md) | 繁體中文 | [简体中文](README.zh-CN.md)
 
-## 這個安裝程式能做什麼？
+## 簡介
 
-安裝程式會自動：
-1. **安裝 Node.js**（如果尚未安裝）- Claude Code 執行所需
-2. **安裝 Claude Code CLI** - 主要應用程式
-3. **設定分析整合** - 追蹤您的程式撰寫活動以獲得深入分析
-4. **自動設定一切** - 無需手動設定
+Claude Code 是 Anthropic 官方的 CLI 工具，提供 AI 編程助手和互動式開發支援。
 
-## 使用方法
+---
+
+## 取得 API 金鑰
+
+**重要**：使用 Claude Code 前，請先完成以下步驟：
+
+1. 前往 [MediaTek MLOP Gateway for OA](https://mlop-azure-gateway.mediatek.inc/auth/login) / [MediaTek MLOP Gateway for SWRD](https://mlop-azure-rddmz.mediatek.inc/auth/login)登入
+2. 取得您的 GAISF API 金鑰
+3. 妥善保存金鑰以供後續使用
+
+**注意**：由於 SSL 憑證設定問題，本說明文件中的網址使用 HTTP 而非 HTTPS，以確保在不同網路環境下的相容性。
+
+---
+
+**設定說明：**
+- 請將 `<<您的 GAISF API 金鑰>>` 替換為您的實際 API 金鑰
+- `ANTHROPIC_BEDROCK_BASE_URL` 設定為使用 HTTP 而非 HTTPS，這是由於 SSL 憑證設定需求
+- **重要提醒**：在某些情況下，Claude Code 可能無法讀取 `~/.claude/settings.json` 設定檔。如果您遇到設定問題，請參考 [官方設定檔說明文件](https://docs.anthropic.com/zh-TW/docs/claude-code/settings#%E8%A8%AD%E5%AE%9A%E6%AA%94%E6%A1%88) 了解其他設定檔位置和故障排除步驟
+
+## 安裝
 
 ### 第一步：下載
 從以下頁面下載最新的安裝套件：
@@ -52,7 +67,6 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code-monitor/releases
 成功安裝後，您會發現：
 - Claude Code CLI 全域可用（嘗試 `claude --version`）
 - 設定檔位於您的主目錄下的 `.claude/` 資料夾
-- 分析元件已準備好追蹤您的開發活動
 
 ## 疑難排解
 
@@ -64,6 +78,13 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code-monitor/releases
 
 **問題**：需要重新安裝或更新
 **解決方案**：您可以安全地多次執行安裝程式 - 不會損壞任何東西
+
+## 額外資源
+
+- [官方文件](https://docs.anthropic.com/zh-TW/docs/claude-code)
+- [設定文件](https://docs.anthropic.com/zh-TW/docs/claude-code/settings)
+- [子代理功能](https://docs.anthropic.com/zh-TW/docs/claude-code/sub-agents) - 探索專業任務的代理功能
+- [MCP 整合](https://docs.anthropic.com/zh-TW/docs/claude-code/mcp) - 了解模型上下文協定支援
 
 ## 取得協助
 

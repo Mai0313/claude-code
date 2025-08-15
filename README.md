@@ -1,16 +1,31 @@
-# Claude Code Installer
+# Claude Code CLI Usage Guide
 
-A simple installer that helps you set up Claude Code with telemetry analytics for your development workflow.
+English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
-## What does this installer do?
+## Introduction
 
-This installer will automatically:
-1. **Install Node.js** (if not present) - Required for Claude Code to run
-2. **Install Claude Code CLI** - The main application
-3. **Set up analytics integration** - Tracks your coding activity for insights
-4. **Configure everything automatically** - No manual configuration needed
+Claude Code is Anthropic's official CLI tool that provides AI programming assistance and interactive development support.
 
-## How to use
+---
+
+## Getting API Key
+
+**Important**: Before using Claude Code, please complete the following steps:
+
+1. Visit [MediaTek MLOP Gateway for OA](https://mlop-azure-gateway.mediatek.inc/auth/login) / [MediaTek MLOP Gateway for SWRD](https://mlop-azure-rddmz.mediatek.inc/auth/login) to login
+2. Obtain your GAISF API key
+3. Keep the key secure for future use
+
+**Note**: Due to SSL certificate configuration issues, the URLs in this documentation use HTTP instead of HTTPS to ensure compatibility across different network environments.
+
+---
+
+**Configuration Instructions:**
+- Replace `<<Your GAISF API Key>>` with your actual API key
+- `ANTHROPIC_BEDROCK_BASE_URL` is set to use HTTP instead of HTTPS due to SSL certificate configuration requirements
+- **Important Reminder**: In some cases, Claude Code may not be able to read the `~/.claude/settings.json` configuration file. If you encounter configuration issues, please refer to the [official configuration file documentation](https://docs.anthropic.com/en/docs/claude-code/settings#configuration-file) for other configuration file locations and troubleshooting steps
+
+## Installation
 
 ### Step 1: Download
 Download the latest installer package from:
@@ -52,7 +67,6 @@ If you don't have Node.js installed, the installer will:
 After successful installation, you'll find:
 - Claude Code CLI available globally (try `claude --version`)
 - Configuration files in your home directory under `.claude/`
-- Analytics component ready to track your development activity
 
 ## Troubleshooting
 
@@ -64,6 +78,13 @@ After successful installation, you'll find:
 
 **Problem**: Need to reinstall or update
 **Solution**: You can safely run the installer multiple times - it won't break anything
+
+## Additional Resources
+
+- [Official Documentation](https://docs.anthropic.com/en/docs/claude-code)
+- [Settings Documentation](https://docs.anthropic.com/en/docs/claude-code/settings)
+- [Sub-agents Feature](https://docs.anthropic.com/en/docs/claude-code/sub-agents) - Explore agent capabilities for specialized tasks
+- [MCP Integration](https://docs.anthropic.com/en/docs/claude-code/mcp) - Learn about Model Context Protocol support
 
 ## Getting Help
 
