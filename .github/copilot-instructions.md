@@ -1,115 +1,119 @@
 # AI Coding Agent Instructions for claude_analysis
 
 ## Project Overview
-A command-line Go utility that reads JSON from stdin, enriches it with user metadata, and posts to a telemetry API. This is a Go port of a Python `post_hook.py` script, designed for cross-platform deployment with static binaries.
+A dual-purpose Go application that processes Claude Code conversation telemetry data. Functions as both a data aggregation CLI tool and an installer for Claude Code monitoring infrastructure. Replaces Python-based telemetry hooks with cross-platform Go binaries.
 
 ## Architecture & Core Components
 
-### Single Binary Design
-- **Main module**: `claude_analysis.go` - entire application logic in one file
-- **Entry point**: `readStdinAndSave()` function handles the complete workflow
-- **No external dependencies** - uses only Go standard library (`encoding/json`, `net/http`, `os/user`)
+### Modular Design Pattern
+- **cmd/claude_analysis/**: Main telemetry processor with stdin→API workflow
+- **cmd/installer/**: Interactive installer for Claude Code setup with Node.js validation
+- **core/config/**: Configuration management with .env support and OS detection
+- **core/telemetry/**: Data processing pipeline (input→parsing→aggregation→HTTP client)
 
-### Data Flow Pattern
+### Dual Operating Modes
 ```
-STOP mode: stdin dict → parse transcript_path → read JSONL → aggregate → POST → return JSON
-POST_TOOL mode: stdin JSON lines → aggregate directly (no file read) → POST → return JSON
+STOP mode (default): stdin dict → extract transcript_path → read JSONL → aggregate → POST
+POST_TOOL mode: stdin JSONL stream → aggregate directly → POST
 ```
 
-Critical API details embedded in code:
-- **Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs`
-- **Headers**: `Content-Type: application/json` + `X-User-Id: <username>`
-- **Timeout**: 10 seconds hardcoded
+Mode switching via environment variables (`MODE=POST_TOOL`) or `.env` file in CWD.
+
+### Critical Integration Points
+- **API Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs` (hardcoded in config)
+- **Headers**: Automatic `X-User-Id` injection from OS username via `os/user.Current()`
+- **External Dependency**: `github.com/denisbrodbeck/machineid` for device fingerprinting
 
 ## Build System Conventions
 
-### Makefile-Driven Workflow
-- `make build` - standard single-platform build to `build/` directory
-- `make build-all` - cross-compile for 6 platforms (Linux amd64/arm64, Windows amd64, macOS amd64/arm64)
-- `make run` - build and execute (useful for testing with piped input)
+### Makefile-Driven Multi-Target Workflow
+- `make build` - builds both `claude_analysis` and `installer` binaries for local platform
+- `make build-all` - cross-compiles for 5 platforms (Linux amd64/arm64, Windows amd64, macOS amd64/arm64)  
+- `make package-all` - creates platform-specific ZIP packages with READMEs
+- `make test` / `make test-verbose` - runs Go tests with coverage
 
-### Platform Naming Convention
-Binaries follow pattern: `claude_analysis-{os}-{arch}[.exe]`
-- Current platform: `build/claude_analysis`
-- Cross-compiled: `build/claude_analysis-linux-amd64`, etc.
+### Release Packaging Convention
+Output ZIP pattern: `Claude-Code-Installer-{platform}.zip` containing:
+- `claude_analysis[.exe]` - telemetry processor
+- `installer[.exe]` - interactive setup tool  
+- `README*.md` files for documentation
 
-## Error Handling Pattern
-Uses explicit error wrapping with `fmt.Errorf()` and `%w` verb:
-```go
-return nil, fmt.Errorf("failed to parse JSON: %w", err)
+### Cross-Platform Binary Naming
+- Local build: `build/claude_analysis`, `build/installer`
+- Cross-compiled: `build/claude_analysis-{os}-{arch}[.exe]`
+
+## Data Processing Pipeline
+
+### JSONL Conversation Parsing
+Core function: `telemetry.AggregateConversationStats()` processes Claude Code conversation logs
+- **Input**: Array of event maps from conversation JSONL
+- **Output**: Single `ApiConversationStats` object with aggregated metrics
+- **Key patterns**: Tracks tool usage (`Read`, `Write`, `ApplyDiff`), file operations, character counts
+
+### Python Dict Compatibility Layer
+`telemetry.ExtractTranscriptPath()` handles Python-style dict input:
+```python
+{'transcript_path': '/path/to/conversation.jsonl'}  # Auto-converted to JSON
 ```
 
-All errors written to stderr, successful JSON output to stdout.
-
-## Key Implementation Details
-
-### User Context Injection
-- Uses `os/user.Current()` to get system username
-- Username becomes `X-User-Id` header value (not request body field)
-- Cross-platform compatible user detection
-
-### JSON Processing Approach
-- Unmarshals to `map[string]interface{}` for flexibility
-- Empty JSON input → empty response (early return)
-- Pretty-prints response with 2-space indentation
-- Reads JSONL transcript via `telemetry.ReadJSONL(path)` then aggregates with `telemetry.AggregateConversationStats(records)` (STOP mode)
-- Alternatively aggregates directly from stdin JSON lines when `MODE=POST_TOOL`
-
-#### Aggregation Output Schema
-`records` is now an array containing one `ApiConversationStats` object with fields:
-- `totalUniqueFiles`, `totalWriteLines`, `totalReadCharacters`, `totalWriteCharacters`, `totalDiffCharacters`
-- `writeToFileDetails[]`, `readFileDetails[]`, `applyDiffDetails[]`
-- `toolCallCounts`, `taskId`, `timestamp`, `folderPath`, `gitRemoteUrl`
-
-### HTTP Client Configuration
-- Custom client with 10-second timeout
-- No retry logic or connection pooling
-- Synchronous request/response pattern
+### Tool Call Aggregation Schema
+Final payload structure sent to API:
+```go
+{
+  "user": "<os-username>",
+  "records": [ApiConversationStats], 
+  "extensionName": "Claude-Code",
+  "machineId": "<device-fingerprint>",
+  "insightsVersion": "v0.0.1"
+}
+```
 
 ## Development Workflows
 
-### Testing Input/Output
+### Testing Input Modes
 ```bash
-echo '{"test": "data"}' | make run
-cat sample.json | ./build/claude_analysis
-# For JSONL aggregation (stdin may be Python-style dict)
-echo "{'transcript_path':'/abs/path/tests/test_conversation.jsonl'}" | ./build/claude_analysis
-# For POST_TOOL mode (stdin is JSON lines)
-MODE=POST_TOOL ./build/claude_analysis <<'EOF'
-{"type":"assistant","uuid":"u1","cwd":"/tmp/ws","sessionId":"s1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
-{"parentUuid":"u1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"a.txt","content":"hello"}}
+# STOP mode: Python dict with transcript path
+echo "{'transcript_path':'/proj/ds906659/gai/claude_analysis/tests/test_conversation.jsonl'}" | make run
+
+# POST_TOOL mode: Direct JSONL processing  
+MODE=POST_TOOL make run <<EOF
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read"}]}}
+{"toolUseResult":{"filePath":"test.txt","content":"hello world"}}
 EOF
+
+# Cross-platform testing
+make build-all && ./build/claude_analysis-linux-amd64 < input.json
 ```
 
-### Code Formatting
-Always run `make fmt` before commits (uses `go fmt ./...`)
+### Configuration Management
+Mode selection priority: `MODE` env var → `mode` env var → `.env` file → default "STOP"
+- **Custom .env parsing**: No external dependencies, manual key=value parsing with quote trimming
+- **Runtime config injection**: Username, machine ID, API endpoint baked into `config.Default()`
+
+### Error Handling Pattern  
+Consistent error wrapping with context:
+```go
+return nil, fmt.Errorf("failed to parse JSON: %w", err)
+```
+All errors to stderr, successful JSON to stdout with pretty-printing.
 
 ## Project-Specific Conventions
 
-### File Organization
-- Single-file application approach (no packages/modules)
-- Build artifacts isolated in `build/` directory
-- No separate config files - all settings hardcoded
+### Single-Module Architecture
+- All business logic in `main.go` entry points
+- Shared functionality extracted to `core/` packages
+- No third-party dependencies except `github.com/denisbrodbeck/machineid`
 
-### Variable Naming
-- Uses `sessionDict` for input data (legacy from Python version)
-- `responseDict` for API response
-- Snake_case for JSON, camelCase for Go variables
+### Git Integration
+`telemetry.getGitRemoteOriginURL()` parses `.git/config` manually to extract `remote.origin.url`
+- Used for workspace context in telemetry payload
+- Fallback-safe: returns empty string on any parsing failure
 
-## Integration Points
+### Installer Integration  
+`cmd/installer/` provides interactive Claude Code setup:
+- Node.js detection and installation guidance
+- Claude Code CLI installation via npm
+- Settings.json hook configuration for telemetry collection
 
-### API Contract
-- Expects JSON input via stdin (Python 字典格式亦可；會自動轉換)，需包含 `transcript_path`
-- API endpoint is environment-specific (hardcoded to `mtktma:8116`)
-- No authentication beyond username header
-- Response structure varies but always JSON
-- Response payload sent to API has fields:
-  - `user` from OS username, `records` from aggregated list, `extensionName` = `Claude-Code`, `machineId` from system, `insightsVersion` = `v0.0.1`
-
-When modifying this codebase:
-1. Maintain single-file simplicity - avoid splitting into packages
-2. Keep API endpoint/timeout configurable only via code changes
-3. Preserve cross-platform build capability in Makefile
-4. Use explicit error handling with context wrapping
-5. Test with actual JSON payloads via stdin, not unit tests
-6. Add new parsing/aggregation under `core/telemetry/` (e.g. `parser.go`) and keep `main.go` minimal
+### Multi-Language Support
+README files in English, 简体中文, and 繁體中文 - maintain consistency across all three when making documentation changes.
