@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -221,6 +222,11 @@ func getJWTToken(username, password string) (string, error) {
 	client := &http.Client{
 		Jar:     jar,
 		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // Disable SSL verification like Python version
+			},
+		},
 	}
 
 	// Step 1: Get CSRF token from login page
@@ -234,18 +240,52 @@ func getJWTToken(username, password string) (string, error) {
 		return "", fmt.Errorf("login page request failed with status: %d", resp.StatusCode)
 	}
 
-	// Extract CSRF token from cookies
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read login page: %w", err)
+	}
+	responseText := string(body)
+
+	// Extract CSRF token from HTML form with multiple patterns
+	csrfPatterns := []string{
+		`<input type="hidden" name="_csrf" value="([^"]+)"`,
+		`name="_csrf" value="([^"]+)"`,
+		`_csrf.*?value="([^"]+)"`,
+		`csrf.*?value="([^"]+)"`,
+	}
+
 	var csrfToken string
-	parsedURL, _ := url.Parse(loginURL)
-	for _, cookie := range jar.Cookies(parsedURL) {
-		if cookie.Name == "csrf_token" {
-			csrfToken = cookie.Value
+	for _, pattern := range csrfPatterns {
+		re := regexp.MustCompile(`(?i)` + pattern)
+		if matches := re.FindStringSubmatch(responseText); len(matches) > 1 {
+			csrfToken = matches[1]
 			break
 		}
 	}
 
+	// If not found in form inputs, try meta tag
 	if csrfToken == "" {
-		return "", errors.New("CSRF token not found in response cookies")
+		metaPattern := `<meta name="csrf-token" content="([^"]+)"`
+		re := regexp.MustCompile(`(?i)` + metaPattern)
+		if matches := re.FindStringSubmatch(responseText); len(matches) > 1 {
+			csrfToken = matches[1]
+		}
+	}
+
+	// Also try cookie-based CSRF token as fallback
+	if csrfToken == "" {
+		parsedURL, _ := url.Parse(loginURL)
+		for _, cookie := range jar.Cookies(parsedURL) {
+			if cookie.Name == "csrf_token" || cookie.Name == "_csrf" {
+				csrfToken = cookie.Value
+				break
+			}
+		}
+	}
+
+	if csrfToken == "" {
+		return "", errors.New("could not extract CSRF token from login page")
 	}
 
 	// Step 2: Login to get JWT token
@@ -257,36 +297,109 @@ func getJWTToken(username, password string) (string, error) {
 		"domain":           {"oa"},
 	}
 
-	resp, err = client.PostForm(loginURL, formData)
+	// Create login request with proper headers
+	req, err := http.NewRequest("POST", loginURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("failed to create login request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Referer", loginURL)
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
+	resp, err = client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("login request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read response body
-	body, err := io.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read login response: %w", err)
 	}
 
-	responseText := string(body)
+	responseText = string(body)
 
-	// Check if login was successful
-	if !strings.Contains(responseText, "Login Successful") && !strings.Contains(responseText, "token-container") {
-		return "", errors.New("login failed: invalid credentials or unexpected response")
+	// Check for specific error messages
+	if strings.Contains(responseText, "Invalid CSRF token") {
+		return "", errors.New("CSRF token validation failed")
+	}
+	if strings.Contains(responseText, "Login Failed") || strings.Contains(responseText, "Invalid credentials") {
+		return "", errors.New("invalid username or password")
+	}
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("login failed with status %d: %s", resp.StatusCode, responseText[:min(500, len(responseText))])
 	}
 
-	// Extract JWT token using regex
-	// Look for JWT pattern: eyJ followed by base64 characters and dots
-	jwtRegex := regexp.MustCompile(`eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*`)
-	matches := jwtRegex.FindAllString(responseText, -1)
-
-	if len(matches) == 0 {
-		return "", errors.New("JWT token not found in login response")
+	// Extract JWT token using multiple patterns
+	jwtPatterns := []string{
+		`eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*`,
+		`"token":\s*"(eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*)"`,
+		`id="token-value"[^>]*>([^<]+)`,
+		`class="token"[^>]*>([^<]+)`,
 	}
 
-	// Return the first (and typically only) JWT token found
-	return matches[0], nil
+	for _, pattern := range jwtPatterns {
+		re := regexp.MustCompile(pattern)
+		if matches := re.FindStringSubmatch(responseText); len(matches) > 0 {
+			var token string
+			if len(matches) > 1 && matches[1] != "" {
+				token = matches[1]
+			} else {
+				token = matches[0]
+			}
+
+			// Validate JWT format
+			if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
+				return token, nil
+			}
+		}
+	}
+
+	// If no token found but login seems successful, check for redirect
+	if (resp.StatusCode == 200 || resp.StatusCode == 302) && resp.Header.Get("Location") != "" {
+		redirectURL := resp.Header.Get("Location")
+		if !strings.HasPrefix(redirectURL, "http") {
+			// Relative URL, make it absolute
+			redirectURL = gatewayURL + redirectURL
+		}
+
+		redirectResp, err := client.Get(redirectURL)
+		if err == nil {
+			defer redirectResp.Body.Close()
+			redirectBody, err := io.ReadAll(redirectResp.Body)
+			if err == nil {
+				redirectText := string(redirectBody)
+				for _, pattern := range jwtPatterns {
+					re := regexp.MustCompile(pattern)
+					if matches := re.FindStringSubmatch(redirectText); len(matches) > 0 {
+						var token string
+						if len(matches) > 1 && matches[1] != "" {
+							token = matches[1]
+						} else {
+							token = matches[0]
+						}
+
+						// Validate JWT format
+						if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
+							return token, nil
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("could not extract JWT token from login response. Response: %s", responseText[:min(500, len(responseText))])
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func installNodeDarwin() error {
@@ -379,6 +492,9 @@ func checkURLReachability(url string, timeout time.Duration) error {
 		Timeout: timeout,
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false, // Keep certificate verification enabled
+			},
 		},
 	}
 
