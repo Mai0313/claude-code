@@ -1,0 +1,25 @@
+{
+  "env": {
+    "DISABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_USE_BEDROCK": "1",
+    "ANTHROPIC_BEDROCK_BASE_URL": "https://mlop-azure-rddmz.mediatek.inc",
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "CLAUDE_CODE_SKIP_BEDROCK_AUTH": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "includeCoAuthoredBy": true,
+  "enableAllProjectMcpServers": true,
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/etc/claude-code/claude_analysis-linux-amd64"
+          }
+        ]
+      }
+    ]
+  }
+}
