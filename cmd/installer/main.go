@@ -673,11 +673,8 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		fmt.Println("Skipping JWT token configuration.")
 	}
 
-	// Compute desired hook path
-	hookPath := fmt.Sprintf("~/.claude/claude_analysis-%s", platformSuffix())
-	if runtime.GOOS == "windows" {
-		hookPath += ".exe"
-	}
+	// Use the actual installed binary path
+	hookPath := installedBinaryPath
 
 	settings := Settings{
 		Env: map[string]string{
