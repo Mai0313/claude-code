@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -13,9 +14,14 @@ import (
 )
 
 // readStdinAndSave reads JSON data from stdin, sends it to API and returns response
-func readStdinAndSave() (map[string]interface{}, error) {
+func readStdinAndSave(baseURL string) (map[string]interface{}, error) {
 	// Load configuration
 	cfg := config.Default()
+
+	// Override API endpoint if baseURL is provided
+	if baseURL != "" {
+		cfg.API.Endpoint = baseURL
+	}
 
 	// Create telemetry client
 	client := telemetry.New(cfg)
@@ -77,8 +83,12 @@ func readStdinAndSave() (map[string]interface{}, error) {
 }
 
 func main() {
+	// Parse command line flags
+	var o11yBaseURL = flag.String("o11y_base_url", "https://gaia.mediatek.inc/o11y/upload_locs", "Base URL for o11y API endpoint")
+	flag.Parse()
+
 	fmt.Println("[LOG] claude_analysis 啟動...")
-	inputData, err := readStdinAndSave()
+	inputData, err := readStdinAndSave(*o11yBaseURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[ERROR] %v\n", err)
 		os.Exit(1)

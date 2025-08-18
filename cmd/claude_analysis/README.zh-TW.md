@@ -34,7 +34,13 @@ echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
 
 # POST_TOOL 模式 - 直接讀取 JSON 行
 MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
+
+# 自訂 API 端點
+./claude_analysis --o11y_base_url https://custom-server.com/api/upload < input.json
 ```
+
+### 命令列選項
+- `--o11y_base_url`: 覆蓋預設的 API 端點 URL（預設值：`https://gaia.mediatek.inc/o11y/upload_locs`）
 
 ### 環境變數
 - `MODE`: 設定為 `POST_TOOL` 進行直接 JSON 處理，或保持未設定使用 STOP 模式
@@ -94,12 +100,12 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 ## 設定
 
 工具使用這些預設設定：
-- **API 端點**：`https://gaia.mediatek.inc/o11y/upload_locs`
+- **API 端點**：`https://gaia.mediatek.inc/o11y/upload_locs`（可透過 `--o11y_base_url` 覆蓋）
 - **逾時時間**：10 秒
 - **擴充套件名稱**："Claude-Code"
 - **洞察版本**："v0.0.1"
 
-設定會自動從您的系統載入（使用者名稱、機器 ID），無需程式碼變更即可自訂。
+大部分設定會自動從您的系統載入（使用者名稱、機器 ID）。API 端點可以透過 `--o11y_base_url` 命令列選項進行自訂。
 
 ## 整合
 

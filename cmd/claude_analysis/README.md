@@ -34,7 +34,13 @@ echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
 
 # POST_TOOL mode - reads JSON lines directly
 MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
+
+# Custom API endpoint
+./claude_analysis --o11y_base_url https://custom-server.com/api/upload < input.json
 ```
+
+### Command Line Options
+- `--o11y_base_url`: Override the default API endpoint URL (default: `https://gaia.mediatek.inc/o11y/upload_locs`)
 
 ### Environment Variables
 - `MODE`: Set to `POST_TOOL` for direct JSON processing, or leave unset for STOP mode
@@ -94,12 +100,12 @@ The tool analyzes and reports:
 ## Configuration
 
 The tool uses these default settings:
-- **API Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs`
+- **API Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs` (can be overridden with `--o11y_base_url`)
 - **Timeout**: 10 seconds
 - **Extension Name**: "Claude-Code"
 - **Insights Version**: "v0.0.1"
 
-Configuration is automatically loaded from your system (username, machine ID) and cannot be customized without code changes.
+Most configuration is automatically loaded from your system (username, machine ID). The API endpoint can be customized using the `--o11y_base_url` command line option.
 
 ## Integration
 
