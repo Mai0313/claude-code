@@ -178,6 +178,36 @@ func checkClaudeInstalled() bool {
 	return false
 }
 
+// readPassword reads a password from stdin
+// Attempts to hide input on Unix systems, falls back to visible input
+func readPassword() (string, error) {
+	// Try to use stty to hide input on Unix systems
+	if runtime.GOOS != "windows" {
+		// Try to turn off echo
+		cmd := exec.Command("stty", "-echo")
+		cmd.Stdin = os.Stdin
+		err := cmd.Run()
+		hideInput := (err == nil)
+
+		if hideInput {
+			// Restore echo when done
+			defer func() {
+				cmd := exec.Command("stty", "echo")
+				cmd.Stdin = os.Stdin
+				_ = cmd.Run()
+				fmt.Println() // Add newline after hidden input
+			}()
+		}
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	password, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(password), nil
+}
+
 // getJWTToken performs login to get JWT token from the MLOP gateway
 // Returns the JWT token string or error if login fails
 func getJWTToken(username, password string) (string, error) {
@@ -510,7 +540,38 @@ func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
 	// Always use connectivity-based selection for MLOP URL
 	chosen := selectGaisfURL()
 
-	// Decide target paths: prefer managed system path if writable; else fallback to user-level
+	// Try to get JWT token for API authentication
+	// Ask user for credentials
+	var apiKeyHeader string
+
+	fmt.Print("Do you want to configure JWT token for API authentication? (y/N): ")
+	reader := bufio.NewReader(os.Stdin)
+	response, _ := reader.ReadString('\n')
+	response = strings.TrimSpace(strings.ToLower(response))
+
+	if response == "y" || response == "yes" {
+		fmt.Print("Enter username: ")
+		username, _ := reader.ReadString('\n')
+		username = strings.TrimSpace(username)
+
+		fmt.Print("Enter password: ")
+		password, err := readPassword()
+		if err != nil {
+			fmt.Printf("Warning: Failed to read password: %v\n", err)
+			fmt.Println("Continuing without JWT token...")
+		} else if username != "" && password != "" {
+			fmt.Printf("Attempting to get JWT token for user: %s\n", username)
+			if token, err := getJWTToken(username, password); err == nil {
+				apiKeyHeader = "api-key: " + token
+				fmt.Println("JWT token obtained successfully.")
+			} else {
+				fmt.Printf("Warning: Failed to get JWT token: %v\n", err)
+				fmt.Println("Continuing without JWT token...")
+			}
+		}
+	} else {
+		fmt.Println("Skipping JWT token configuration.")
+	} // Decide target paths: prefer managed system path if writable; else fallback to user-level
 	managedSettingsPath, managedBinDir := managedPaths()
 	useManaged := false
 	if managedSettingsPath != "" {
@@ -565,6 +626,11 @@ func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
 				},
 			},
 		},
+	}
+
+	// Add custom headers if JWT token was obtained
+	if apiKeyHeader != "" {
+		settings.Env["ANTHROPIC_CUSTOM_HEADERS"] = apiKeyHeader
 	}
 
 	data, err := json.MarshalIndent(settings, "", "  ")
@@ -647,5 +713,3 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	}
 	return nil
 }
-
-// (no-op: removed unused zipBytes helper)
