@@ -47,11 +47,17 @@ func main() {
 
 func run() error {
 	// 1) Node.js check/install guidance
-	if !isCommandAvailable("node") {
+	if !checkNodeVersion() {
+		if isCommandAvailable("node") {
+			fmt.Println("Node.js found but version is less than 22. Upgrading...")
+		} else {
+			fmt.Println("Node.js not found. Installing...")
+		}
+
 		switch runtime.GOOS {
 		case "windows":
 			// Per requirement: prompt user to download MSI and exit.
-			fmt.Println("Node.js not found. Please download and install Node.js LTS from:")
+			fmt.Println("Node.js not found or version < 22. Please download and install Node.js LTS from:")
 			fmt.Println("  https://nodejs.org/dist/v22.18.0/node-v22.18.0-arm64.msi")
 			fmt.Println("After installation, re-run this installer.")
 			return errors.New("node.js not installed; user action required")
@@ -66,12 +72,21 @@ func run() error {
 		default:
 			return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 		}
+	} else {
+		fmt.Println("Node.js version >= 22 found. Skipping Node.js installation.")
 	}
 
 	// 2) Install @anthropic-ai/claude-code with registry fallbacks
-	registryUsed, err := installClaudeCLI()
-	if err != nil {
-		return err
+	var registryUsed string
+	if checkClaudeInstalled() {
+		fmt.Println("Claude CLI already installed. Skipping installation.")
+		registryUsed = "" // No registry was used since we skipped installation
+	} else {
+		var err error
+		registryUsed, err = installClaudeCLI()
+		if err != nil {
+			return err
+		}
 	}
 
 	// 3) Move claude_analysis to ~/.claude with platform-specific name
@@ -106,6 +121,58 @@ func pauseIfInteractive() {
 func isCommandAvailable(name string) bool {
 	_, err := exec.LookPath(name)
 	return err == nil
+}
+
+// checkNodeVersion returns true if Node.js is installed and version >= 22
+func checkNodeVersion() bool {
+	if !isCommandAvailable("node") {
+		return false
+	}
+
+	out, err := exec.Command("node", "--version").Output()
+	if err != nil {
+		return false
+	}
+
+	version := strings.TrimSpace(string(out))
+	// Remove 'v' prefix if present (e.g., "v22.1.0" -> "22.1.0")
+	version = strings.TrimPrefix(version, "v")
+
+	// Extract major version
+	parts := strings.Split(version, ".")
+	if len(parts) == 0 {
+		return false
+	}
+
+	// Parse major version
+	var major int
+	if _, err := fmt.Sscanf(parts[0], "%d", &major); err != nil {
+		return false
+	}
+
+	return major >= 22
+}
+
+// checkClaudeInstalled returns true if Claude CLI is already installed and working
+func checkClaudeInstalled() bool {
+	// Try running "claude --version"; if successful, it's installed
+	if err := exec.Command("claude", "--version").Run(); err == nil {
+		return true
+	}
+
+	// Try from npm bin -g location
+	out, err := exec.Command(npmPath(), "bin", "-g").Output()
+	if err != nil {
+		return false
+	}
+	binDir := strings.TrimSpace(string(out))
+	claudePath := filepath.Join(binDir, exeName("claude"))
+	if _, err := os.Stat(claudePath); err == nil {
+		if err := exec.Command(claudePath, "--version").Run(); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func installNodeDarwin() error {
@@ -214,8 +281,8 @@ func checkURLReachability(url string, timeout time.Duration) error {
 	return fmt.Errorf("HTTP status: %d", resp.StatusCode)
 }
 
-// selectBestRegistry checks connectivity and returns the best npm registry to use
-func selectBestRegistry() string {
+// selectRegistryURL checks connectivity and returns the best npm registry to use
+func selectRegistryURL() string {
 	registryHosts := []string{
 		"oa-mirror.mediatek.inc/repository/npm",
 		"swrd-mirror.mediatek.inc/repository/npm",
@@ -231,8 +298,8 @@ func selectBestRegistry() string {
 	return "" // Use default registry
 }
 
-// selectBestMLOPURL checks connectivity and returns the best MLOP URL to use
-func selectBestMLOPURL() string {
+// selectGaisfURL checks connectivity and returns the best MLOP URL to use
+func selectGaisfURL() string {
 	mlopHosts := []string{
 		"mlop-azure-gateway.mediatek.inc",
 		"mlop-azure-rddmz.mediatek.inc",
@@ -245,47 +312,32 @@ func selectBestMLOPURL() string {
 		}
 	}
 
-	// Fallback to first option with HTTPS
+	// Fallback: just use first option with HTTPS if no connectivity check worked
 	return "https://mlop-azure-gateway.mediatek.inc"
 }
 
 func installClaudeCLI() (string, error) {
-	// First, try to find the best working registry
-	bestRegistry := selectBestRegistry()
+	// Use the best working registry found by selectRegistryURL
+	registry := selectRegistryURL()
 
-	var registries []string
-	if bestRegistry != "" {
-		// Put the working registry first
-		registries = []string{"", bestRegistry}
+	args := []string{"install", "-g", "@anthropic-ai/claude-code"}
+	if registry != "" {
+		args = append(args, "--registry="+registry)
+		fmt.Printf("Installing @anthropic-ai/claude-code via registry=%s...\n", registry)
 	} else {
-		// Fallback to original hardcoded list
-		registries = []string{"", "http://oa-mirror.mediatek.inc/repository/npm", "http://swrd-mirror.mediatek.inc/repository/npm"}
+		fmt.Println("Installing @anthropic-ai/claude-code via default registry...")
 	}
 
-	var lastErr error
-	for i, reg := range registries {
-		args := []string{"install", "-g", "@anthropic-ai/claude-code"}
-		if reg != "" {
-			args = append(args, "--registry="+reg)
-		}
-		fmt.Printf("Installing @anthropic-ai/claude-code (attempt %d/%d)%s...\n", i+1, len(registries), func() string {
-			if reg != "" {
-				return " via registry=" + reg
-			}
-			return ""
-		}())
-		if err := runCmdLogged(npmPath(), args...); err != nil {
-			lastErr = err
-			continue
-		}
-		// Verify installation
-		if err := verifyClaudeInstalled(); err != nil {
-			lastErr = err
-			continue
-		}
-		return reg, nil
+	if err := runCmdLogged(npmPath(), args...); err != nil {
+		return "", fmt.Errorf("npm install failed: %w", err)
 	}
-	return "", fmt.Errorf("failed to install @anthropic-ai/claude-code: %w", lastErr)
+
+	// Verify installation
+	if err := verifyClaudeInstalled(); err != nil {
+		return "", fmt.Errorf("installation verification failed: %w", err)
+	}
+
+	return registry, nil
 }
 
 func verifyClaudeInstalled() error {
@@ -368,17 +420,8 @@ func exeName(base string) string {
 }
 
 func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
-	// Determine base URL by mirror rule first; if no mirror was used, use connectivity check
-	var chosen string
-	switch registryUsed {
-	case "http://oa-mirror.mediatek.inc/repository/npm", "https://oa-mirror.mediatek.inc/repository/npm":
-		chosen = "https://mlop-azure-gateway.mediatek.inc"
-	case "http://swrd-mirror.mediatek.inc/repository/npm", "https://swrd-mirror.mediatek.inc/repository/npm":
-		chosen = "https://mlop-azure-rddmz.mediatek.inc"
-	default:
-		// Use connectivity-based selection
-		chosen = selectBestMLOPURL()
-	}
+	// Always use connectivity-based selection for MLOP URL
+	chosen := selectGaisfURL()
 
 	// Decide target paths: prefer managed system path if writable; else fallback to user-level
 	managedSettingsPath, managedBinDir := managedPaths()
