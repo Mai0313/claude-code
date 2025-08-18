@@ -33,7 +33,7 @@ func (c *Client) Submit(data interface{}) (map[string]interface{}, error) {
 	var jsonData []byte
 	var err error
 	if data == nil {
-		return make(map[string]interface{}), nil
+		return map[string]interface{}{"status": "success", "message": "no data to submit"}, nil
 	}
 	jsonData, err = json.Marshal(data)
 	if err != nil {
@@ -56,17 +56,30 @@ func (c *Client) Submit(data interface{}) (map[string]interface{}, error) {
 	}
 	defer resp.Body.Close()
 
-	// Read response
+	// Read response body (但不强制要求为JSON)
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	// Parse response JSON
-	var responseDict map[string]interface{}
-	if err := json.Unmarshal(responseBody, &responseDict); err != nil {
-		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
+	// 首先检查HTTP状态码来判断成功与否
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		// 成功的情况 - 尝试解析JSON，如果失败就返回成功状态
+		var responseDict map[string]interface{}
+		if len(responseBody) > 0 && json.Unmarshal(responseBody, &responseDict) == nil {
+			// 成功解析JSON响应
+			return responseDict, nil
+		} else {
+			// API成功但没有JSON响应或解析失败，这是正常的
+			return map[string]interface{}{
+				"status":     "success",
+				"statusCode": resp.StatusCode,
+				"message":    "request completed successfully",
+				"response":   string(responseBody),
+			}, nil
+		}
+	} else {
+		// HTTP错误状态码
+		return nil, fmt.Errorf("API returned error status %d: %s", resp.StatusCode, string(responseBody))
 	}
-
-	return responseDict, nil
 }
