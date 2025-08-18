@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -169,8 +169,99 @@ func npmPath() string {
 	return "npm" // rely on PATH
 }
 
+// checkConnectivity tests connectivity to a base URL with both HTTPS and HTTP schemes
+// Returns the working URL (with scheme) or empty string if none work
+func checkConnectivity(baseURL string, timeout time.Duration) string {
+	// Extract hostname from baseURL (remove any existing scheme)
+	hostname := strings.TrimPrefix(baseURL, "https://")
+	hostname = strings.TrimPrefix(hostname, "http://")
+	hostname = strings.TrimSuffix(hostname, "/")
+
+	// First try HTTPS
+	httpsURL := "https://" + hostname
+	if checkURLReachability(httpsURL, timeout) == nil {
+		return httpsURL
+	}
+
+	// Then try HTTP
+	httpURL := "http://" + hostname
+	if checkURLReachability(httpURL, timeout) == nil {
+		return httpURL
+	}
+
+	return ""
+}
+
+// checkURLReachability performs an HTTP HEAD request to test if URL is reachable
+func checkURLReachability(url string, timeout time.Duration) error {
+	client := &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
+
+	resp, err := client.Head(url)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+		return nil
+	}
+
+	return fmt.Errorf("HTTP status: %d", resp.StatusCode)
+}
+
+// selectBestRegistry checks connectivity and returns the best npm registry to use
+func selectBestRegistry() string {
+	registryHosts := []string{
+		"oa-mirror.mediatek.inc/repository/npm",
+		"swrd-mirror.mediatek.inc/repository/npm",
+	}
+
+	for _, host := range registryHosts {
+		if workingURL := checkConnectivity(host, 3*time.Second); workingURL != "" {
+			fmt.Printf("Found working registry: %s\n", workingURL)
+			return workingURL
+		}
+	}
+
+	return "" // Use default registry
+}
+
+// selectBestMLOPURL checks connectivity and returns the best MLOP URL to use
+func selectBestMLOPURL() string {
+	mlopHosts := []string{
+		"mlop-azure-gateway.mediatek.inc",
+		"mlop-azure-rddmz.mediatek.inc",
+	}
+
+	for _, host := range mlopHosts {
+		if workingURL := checkConnectivity(host, 3*time.Second); workingURL != "" {
+			fmt.Printf("Found working MLOP endpoint: %s\n", workingURL)
+			return workingURL
+		}
+	}
+
+	// Fallback to first option with HTTPS
+	return "https://mlop-azure-gateway.mediatek.inc"
+}
+
 func installClaudeCLI() (string, error) {
-	registries := []string{"", "http://oa-mirror.mediatek.inc/repository/npm", "http://swrd-mirror.mediatek.inc/repository/npm"}
+	// First, try to find the best working registry
+	bestRegistry := selectBestRegistry()
+
+	var registries []string
+	if bestRegistry != "" {
+		// Put the working registry first
+		registries = []string{"", bestRegistry}
+	} else {
+		// Fallback to original hardcoded list
+		registries = []string{"", "http://oa-mirror.mediatek.inc/repository/npm", "http://swrd-mirror.mediatek.inc/repository/npm"}
+	}
+
 	var lastErr error
 	for i, reg := range registries {
 		args := []string{"install", "-g", "@anthropic-ai/claude-code"}
@@ -277,26 +368,16 @@ func exeName(base string) string {
 }
 
 func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
-	// Determine base URL by mirror rule first; if no mirror was used, fallback to connectivity
+	// Determine base URL by mirror rule first; if no mirror was used, use connectivity check
 	var chosen string
 	switch registryUsed {
-	case "http://oa-mirror.mediatek.inc/repository/npm":
+	case "http://oa-mirror.mediatek.inc/repository/npm", "https://oa-mirror.mediatek.inc/repository/npm":
 		chosen = "https://mlop-azure-gateway.mediatek.inc"
-	case "http://swrd-mirror.mediatek.inc/repository/npm":
+	case "http://swrd-mirror.mediatek.inc/repository/npm", "https://swrd-mirror.mediatek.inc/repository/npm":
 		chosen = "https://mlop-azure-rddmz.mediatek.inc"
 	default:
-		// Connectivity-based selection
-		candidates := []string{
-			"https://mlop-azure-gateway.mediatek.inc",
-			"https://mlop-azure-rddmz.mediatek.inc",
-		}
-		chosen = candidates[0]
-		for _, u := range candidates {
-			if checkReachable(u, 3*time.Second) == nil {
-				chosen = u
-				break
-			}
-		}
+		// Use connectivity-based selection
+		chosen = selectBestMLOPURL()
 	}
 
 	// Decide target paths: prefer managed system path if writable; else fallback to user-level
@@ -402,27 +483,6 @@ func managedPaths() (string, string) {
 	default:
 		return "", ""
 	}
-}
-
-func checkReachable(rawURL string, timeout time.Duration) error {
-	// Quick TCP connect check to 443 or 80 depending on scheme
-	host := rawURL
-	if strings.HasPrefix(rawURL, "https://") {
-		host = strings.TrimPrefix(rawURL, "https://")
-		host = strings.TrimSuffix(host, "/")
-		host = net.JoinHostPort(host, "443")
-	} else if strings.HasPrefix(rawURL, "http://") {
-		host = strings.TrimPrefix(rawURL, "http://")
-		host = strings.TrimSuffix(host, "/")
-		host = net.JoinHostPort(host, "80")
-	}
-	d := net.Dialer{Timeout: timeout}
-	conn, err := d.Dial("tcp", host)
-	if err != nil {
-		return err
-	}
-	_ = conn.Close()
-	return nil
 }
 
 func runCmdLogged(name string, args ...string) error {
