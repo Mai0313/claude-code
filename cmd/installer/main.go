@@ -684,38 +684,12 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		}
 	} else {
 		fmt.Println("Skipping JWT token configuration.")
-	} // Decide target paths: prefer managed system path if writable; else fallback to user-level
-	managedSettingsPath, managedBinDir := managedPaths()
-	useManaged := false
-	if managedSettingsPath != "" {
-		if err := os.MkdirAll(filepath.Dir(managedSettingsPath), 0o755); err == nil {
-			// try a small write test by writing settings later; keep a flag
-			useManaged = true
-		}
 	}
 
-	// Compute desired hook path and optionally copy binary into managed directory
+	// Compute desired hook path
 	hookPath := fmt.Sprintf("~/.claude/claude_analysis-%s", platformSuffix())
 	if runtime.GOOS == "windows" {
 		hookPath += ".exe"
-	}
-	if useManaged && managedBinDir != "" {
-		// Destination binary name mirrors platform suffix
-		destName := fmt.Sprintf("claude_analysis-%s", platformSuffix())
-		if runtime.GOOS == "windows" {
-			destName += ".exe"
-		}
-		systemBin := filepath.Join(managedBinDir, destName)
-		if err := os.MkdirAll(managedBinDir, 0o755); err == nil {
-			if err := copyFile(installedBinaryPath, systemBin, 0o755); err == nil {
-				// Use system path for hook; quote on macOS to survive space in "Application Support"
-				if runtime.GOOS == "darwin" {
-					hookPath = fmt.Sprintf("'%s'", systemBin)
-				} else {
-					hookPath = systemBin
-				}
-			}
-		}
 	}
 
 	settings := Settings{
@@ -751,16 +725,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	// Try writing managed-settings.json first if allowed
-	if useManaged && managedSettingsPath != "" {
-		if err := os.WriteFile(managedSettingsPath, data, 0o644); err == nil {
-			fmt.Println("Wrote managed settings:", managedSettingsPath)
-			return nil
-		}
-		// If writing failed, fall through to user-level
-	}
-
-	// Fallback to user-level settings.json
+	// Write user-level settings.json
 	homeDir, _ := os.UserHomeDir()
 	targetDir := filepath.Join(homeDir, ".claude")
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
@@ -772,26 +737,6 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	}
 	fmt.Println("Wrote settings:", target)
 	return nil
-}
-
-// managedPaths returns (settingsFilePath, binDir) for system-managed configuration by OS.
-// Returns empty strings when OS is unsupported.
-func managedPaths() (string, string) {
-	switch runtime.GOOS {
-	case "darwin":
-		dir := filepath.Join("/Library", "Application Support", "ClaudeCode")
-		return filepath.Join(dir, "managed-settings.json"), dir
-	case "linux":
-		dir := filepath.Join("/etc", "claude-code")
-		return filepath.Join(dir, "managed-settings.json"), dir
-	case "windows":
-		// Use ProgramData for system-wide state
-		// Note: filepath.Join on Windows will use backslashes when built on Windows; we construct literal path here
-		dir := `C:\\ProgramData\\ClaudeCode`
-		return dir + `\\managed-settings.json`, dir
-	default:
-		return "", ""
-	}
 }
 
 func runCmdLogged(name string, args ...string) error {
