@@ -80,13 +80,10 @@ func run() error {
 	}
 
 	// 2) Install @anthropic-ai/claude-code with registry fallbacks
-	var registryUsed string
 	if checkClaudeInstalled() {
 		fmt.Println("Claude CLI already installed. Skipping installation.")
-		registryUsed = "" // No registry was used since we skipped installation
 	} else {
-		var err error
-		registryUsed, err = installClaudeCLI()
+		err := installClaudeCLI()
 		if err != nil {
 			return err
 		}
@@ -99,7 +96,7 @@ func run() error {
 	}
 
 	// 4) Generate settings.json to ~/.claude/settings.json
-	if err := writeSettingsJSON(destPath, registryUsed); err != nil {
+	if err := writeSettingsJSON(destPath); err != nil {
 		return err
 	}
 
@@ -433,7 +430,7 @@ func selectGaisfURL() string {
 	return "https://mlop-azure-gateway.mediatek.inc"
 }
 
-func installClaudeCLI() (string, error) {
+func installClaudeCLI() error {
 	// Use the best working registry found by selectRegistryURL
 	registry := selectRegistryURL()
 
@@ -446,15 +443,15 @@ func installClaudeCLI() (string, error) {
 	}
 
 	if err := runCmdLogged(npmPath(), args...); err != nil {
-		return "", fmt.Errorf("npm install failed: %w", err)
+		return fmt.Errorf("npm install failed: %w", err)
 	}
 
 	// Verify installation
 	if err := verifyClaudeInstalled(); err != nil {
-		return "", fmt.Errorf("installation verification failed: %w", err)
+		return fmt.Errorf("installation verification failed: %w", err)
 	}
 
-	return registry, nil
+	return nil
 }
 
 func verifyClaudeInstalled() error {
@@ -536,7 +533,7 @@ func exeName(base string) string {
 	return base
 }
 
-func writeSettingsJSON(installedBinaryPath string, registryUsed string) error {
+func writeSettingsJSON(installedBinaryPath string) error {
 	// Always use connectivity-based selection for MLOP URL
 	chosen := selectGaisfURL()
 
