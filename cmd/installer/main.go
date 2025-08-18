@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -173,6 +176,90 @@ func checkClaudeInstalled() bool {
 		}
 	}
 	return false
+}
+
+// getJWTToken performs login to get JWT token from the MLOP gateway
+// Returns the JWT token string or error if login fails
+func getJWTToken(username, password string) (string, error) {
+	// Get gateway URL using selectGaisfURL
+	gatewayURL := selectGaisfURL()
+	loginURL := gatewayURL + "/auth/login"
+
+	// Create HTTP client with cookie jar
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cookie jar: %w", err)
+	}
+
+	client := &http.Client{
+		Jar:     jar,
+		Timeout: 30 * time.Second,
+	}
+
+	// Step 1: Get CSRF token from login page
+	resp, err := client.Get(loginURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to get login page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("login page request failed with status: %d", resp.StatusCode)
+	}
+
+	// Extract CSRF token from cookies
+	var csrfToken string
+	parsedURL, _ := url.Parse(loginURL)
+	for _, cookie := range jar.Cookies(parsedURL) {
+		if cookie.Name == "csrf_token" {
+			csrfToken = cookie.Value
+			break
+		}
+	}
+
+	if csrfToken == "" {
+		return "", errors.New("CSRF token not found in response cookies")
+	}
+
+	// Step 2: Login to get JWT token
+	formData := url.Values{
+		"_csrf":            {csrfToken},
+		"username":         {username},
+		"password":         {password},
+		"expiration_hours": {"720"},
+		"domain":           {"oa"},
+	}
+
+	resp, err = client.PostForm(loginURL, formData)
+	if err != nil {
+		return "", fmt.Errorf("login request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read login response: %w", err)
+	}
+
+	responseText := string(body)
+
+	// Check if login was successful
+	if !strings.Contains(responseText, "Login Successful") && !strings.Contains(responseText, "token-container") {
+		return "", errors.New("login failed: invalid credentials or unexpected response")
+	}
+
+	// Extract JWT token using regex
+	// Look for JWT pattern: eyJ followed by base64 characters and dots
+	jwtRegex := regexp.MustCompile(`eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*`)
+	matches := jwtRegex.FindAllString(responseText, -1)
+
+	if len(matches) == 0 {
+		return "", errors.New("JWT token not found in login response")
+	}
+
+	// Return the first (and typically only) JWT token found
+	return matches[0], nil
 }
 
 func installNodeDarwin() error {
