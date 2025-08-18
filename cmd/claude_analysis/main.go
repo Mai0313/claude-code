@@ -30,7 +30,7 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 	// 讀取 stdin
 	stdinData, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		log.Printf("[ERROR] 無法讀取標準輸入: %v", err)
+		log.Printf("[ERROR] Failed to read from stdin: %v", err)
 		return map[string]interface{}{"status": "error", "message": "failed to read stdin"}
 	}
 
@@ -48,24 +48,24 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 			if err := json.Unmarshal([]byte(line), &obj); err == nil {
 				raw = append(raw, obj)
 			} else {
-				log.Printf("[WARN] JSON 解析失敗，跳過此行: %v", err)
+				log.Printf("[WARN] JSON parsing failed, skipping line: %v", err)
 			}
 		}
 		if len(raw) == 0 {
-			log.Printf("[ERROR] POST_TOOL 模式下未找到有效的 JSON 行")
+			log.Printf("[ERROR] No valid JSON lines found in POST_TOOL mode")
 			return map[string]interface{}{"status": "error", "message": "no valid JSON lines found"}
 		}
 		aggregated = telemetry.AggregateConversationStats(raw)
 	} else { // STOP (default)
 		path, err := telemetry.ExtractTranscriptPath(string(stdinData))
 		if err != nil {
-			log.Printf("[ERROR] 無法提取 transcript 路徑: %v", err)
+			log.Printf("[ERROR] Failed to extract transcript path: %v", err)
 			return map[string]interface{}{"status": "error", "message": "failed to extract transcript path"}
 		}
-		log.Printf("[INFO] 讀取到的資料路徑: %s", path)
+		log.Printf("[INFO] Extracted transcript path: %s", path)
 		data, err := telemetry.ReadJSONL(path)
 		if err != nil {
-			log.Printf("[ERROR] 無法讀取 JSONL 檔案: %v", err)
+			log.Printf("[ERROR] Failed to read JSONL file: %v", err)
 			return map[string]interface{}{"status": "error", "message": "failed to read JSONL file"}
 		}
 		aggregated = telemetry.AggregateConversationStats(data)
@@ -83,11 +83,11 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 	// 送出
 	response, err := client.Submit(payload)
 	if err != nil {
-		log.Printf("[ERROR] API 呼叫失敗 (端點: %s): %v", cfg.API.Endpoint, err)
+		log.Printf("[ERROR] API call failed (endpoint: %s): %v", cfg.API.Endpoint, err)
 		return map[string]interface{}{"status": "error", "message": "API call failed", "endpoint": cfg.API.Endpoint}
 	}
 
-	log.Printf("[INFO] 成功發送遙測資料到 %s", cfg.API.Endpoint)
+	log.Printf("[INFO] Successfully sent telemetry data to %s", cfg.API.Endpoint)
 	return response
 }
 
@@ -100,7 +100,7 @@ func main() {
 	defaultBaseURL := "https://gaia.mediatek.inc/o11y/upload_locs"
 	if envURL := os.Getenv("O11Y_BASE_URL"); envURL != "" {
 		defaultBaseURL = envURL
-		log.Printf("[INFO] 从环境变量 O11Y_BASE_URL 读取到 API 端点: %s", envURL)
+		log.Printf("[INFO] Read API endpoint from environment variable O11Y_BASE_URL: %s", envURL)
 	}
 
 	// Parse command line flags (命令行参数优先级最高)
@@ -110,25 +110,25 @@ func main() {
 	// 确定最终使用的 URL
 	finalURL := *o11yBaseURL
 	if finalURL != defaultBaseURL && os.Getenv("O11Y_BASE_URL") != "" {
-		log.Printf("[INFO] 命令行参数 --o11y_base_url 覆盖了环境变量，使用: %s", finalURL)
+		log.Printf("[INFO] Command line argument --o11y_base_url overrides environment variable, using: %s", finalURL)
 	}
 
-	log.Printf("[INFO] claude_analysis 啟動...")
+	log.Printf("[INFO] claude_analysis starting...")
 	inputData := readStdinAndSave(finalURL)
 
-	log.Printf("[INFO] readStdinAndSave 執行完成，準備輸出結果...")
+	log.Printf("[INFO] readStdinAndSave completed, preparing output...")
 	if len(inputData) > 0 {
 		jsonOutput, err := json.MarshalIndent(inputData, "", "  ")
 		if err != nil {
-			log.Printf("[ERROR] JSON 序列化失敗: %v", err)
+			log.Printf("[ERROR] JSON marshaling failed: %v", err)
 			// 即使序列化失敗，也輸出簡單的錯誤訊息而不是中斷程序
 			fmt.Println(`{"status": "error", "message": "JSON marshaling failed"}`)
 		} else {
 			fmt.Println(string(jsonOutput))
 		}
 	} else {
-		log.Printf("[WARN] 無資料可輸出")
+		log.Printf("[WARN] No data to output")
 		fmt.Println(`{"status": "no_data", "message": "no data to output"}`)
 	}
-	log.Printf("[INFO] claude_analysis 執行完成")
+	log.Printf("[INFO] claude_analysis completed")
 }
