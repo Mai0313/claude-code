@@ -215,8 +215,8 @@ func checkNodeVersion() bool {
 // Returns the GAISF token string or error if login fails
 func getGAISFToken(username, password string) (string, error) {
 	// Use connectivity-selected base URL and domain via unified environment selection
-	baseURL := selectGaisfURL()
 	env := ensureEnvironmentSelected()
+	baseURL := env.MLOPBaseURL
 	loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
 
 	// Cookie-aware HTTP client with redirect support (default)
@@ -674,34 +674,13 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	// Use the actual installed binary path
 	hookPath := installedBinaryPath
 
-	// Initialize with default settings
-	settings := Settings{
-		Env:                        map[string]string{},
-		IncludeCoAuthoredBy:        true,
-		EnableAllProjectMcpServers: true,
-		Hooks: map[string][]Hook{
-			"Stop": {
-				{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}},
-			},
-		},
-	}
-	applyDefaultEnv(settings.Env, chosen, "")
-
-	// If we had valid existing settings, start from them and merge updates
+	// Build settings from existing (if any) and ensure unified defaults
+	var settings Settings
 	if existingSettings != nil {
 		logger.Info("Found existing settings, merging configurations...")
 		settings = *existingSettings
-		if settings.Env == nil {
-			settings.Env = make(map[string]string)
-		}
-		applyDefaultEnv(settings.Env, chosen, "")
-		settings.IncludeCoAuthoredBy = true
-		settings.EnableAllProjectMcpServers = true
-		if settings.Hooks == nil {
-			settings.Hooks = make(map[string][]Hook)
-		}
-		settings.Hooks["Stop"] = []Hook{{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}}}
 	}
+	ensureSettingsDefaults(&settings, hookPath, chosen, "")
 
 	// Add custom headers if GAISF token was obtained
 	if apiKeyHeader != "" {
@@ -722,6 +701,23 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	}
 	logger.Info("Wrote settings", zap.String("path", target))
 	return nil
+}
+
+// ensureSettingsDefaults applies unified defaults and required structure to settings.
+// It is idempotent and can be called whether settings was empty or loaded from disk.
+func ensureSettingsDefaults(settings *Settings, hookPath, baseURL, customHeader string) {
+	if settings.Env == nil {
+		settings.Env = make(map[string]string)
+	}
+	applyDefaultEnv(settings.Env, baseURL, customHeader)
+	// Hard-enable flags required by the app
+	settings.IncludeCoAuthoredBy = true
+	settings.EnableAllProjectMcpServers = true
+	// Ensure required Stop hook exists and points to provided hookPath
+	if settings.Hooks == nil {
+		settings.Hooks = make(map[string][]Hook)
+	}
+	settings.Hooks["Stop"] = []Hook{{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}}}
 }
 
 func runCmdLogged(name string, args ...string) error {
