@@ -828,6 +828,7 @@ func applyDefaultEnv(env map[string]string, baseURL string, customHeader string)
 	env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
 	env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
 	env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+	env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0" // Allow self-signed certs for MLOP
 	if customHeader != "" {
 		env["ANTHROPIC_CUSTOM_HEADERS"] = customHeader
 	}
