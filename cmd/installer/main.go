@@ -417,26 +417,18 @@ func npmPath() string {
 	return "npm" // rely on PATH
 }
 
-// checkConnectivity tests connectivity to a base URL with both HTTPS and HTTP schemes
-// Returns the working URL (with scheme) or empty string if none work
+// checkConnectivity tests connectivity to a base URL using HTTPS only with a lightweight GET.
+// Returns the working URL (with scheme) or empty string if not reachable within timeout.
 func checkConnectivity(baseURL string, timeout time.Duration) string {
 	// Extract hostname from baseURL (remove any existing scheme)
 	hostname := strings.TrimPrefix(baseURL, "https://")
 	hostname = strings.TrimPrefix(hostname, "http://")
 	hostname = strings.TrimSuffix(hostname, "/")
 
-	// First try HTTPS
 	httpsURL := "https://" + hostname
 	if checkURLReachability(httpsURL, timeout) == nil {
 		return httpsURL
 	}
-
-	// Then try HTTP
-	httpURL := "http://" + hostname
-	if checkURLReachability(httpURL, timeout) == nil {
-		return httpURL
-	}
-
 	return ""
 }
 
@@ -450,21 +442,7 @@ func checkURLReachability(url string, timeout time.Duration) error {
 		},
 	}
 
-	// Try HEAD first
-	if resp, err := client.Head(url); err == nil {
-		resp.Body.Close()
-		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-			return nil
-		}
-		// Some servers may not support HEAD properly; fall back to GET below
-		if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented {
-			// continue to GET
-		} else {
-			return fmt.Errorf("HTTP status: %d", resp.StatusCode)
-		}
-	}
-
-	// Fallback: light GET request
+	// Single lightweight GET request. Many services don't support HEAD reliably.
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("User-Agent", "claude-installer/1.0")
 	resp, err := client.Do(req)
@@ -473,10 +451,8 @@ func checkURLReachability(url string, timeout time.Duration) error {
 	}
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 512))
 	resp.Body.Close()
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-		return nil
-	}
-	return fmt.Errorf("HTTP status: %d", resp.StatusCode)
+	// Treat any HTTP response as reachable (even 4xx/5xx indicate server reachable and TLS/DNS ok).
+	return nil
 }
 
 // selectRegistryURL checks connectivity and returns the best npm registry to use
@@ -505,7 +481,8 @@ func ensureEnvironmentSelected() *Environment {
 	for _, cfg := range environmentConfigs {
 		var chosenMLOP string
 		for _, host := range cfg.MLOPHosts {
-			if url := checkConnectivity(host, 3*time.Second); url != "" {
+			// Use a shorter timeout to avoid long delays when hosts are not reachable.
+			if url := checkConnectivity(host, 2*time.Second); url != "" {
 				chosenMLOP = url
 				break
 			}
@@ -516,7 +493,7 @@ func ensureEnvironmentSelected() *Environment {
 		// Registry is optional; use first reachable, else empty to fall back to default
 		var chosenRegistry string
 		for _, host := range cfg.RegistryHosts {
-			if url := checkConnectivity(host, 3*time.Second); url != "" {
+			if url := checkConnectivity(host, 2*time.Second); url != "" {
 				chosenRegistry = url
 				break
 			}
