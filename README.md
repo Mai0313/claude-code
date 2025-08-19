@@ -1,193 +1,126 @@
-# Claude Code CLI Usage Guide
+# Install Claude Code with the Installer
 
 English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 
-## Introduction
+## What this installer does
 
-Claude Code is Anthropic's official CLI tool that provides AI programming assistance and interactive development support. This installer provides automated setup with intelligent network detection and optional JWT authentication.
+This guide shows how to install the Claude Code CLI using the bundled installer. The installer will:
 
----
+1) Check Node.js (needs v22+). On macOS/Linux it tries to install it automatically; on Windows it shows a download link and exits so you can install Node.js, then rerun.
+2) Install the Claude Code CLI globally via npm: @anthropic-ai/claude-code.
+3) Create ~/.claude/settings.json with sensible defaults and optional authentication.
 
-## Authentication Options
+The installer also:
 
-### Option 1: JWT Token Authentication (Recommended)
-The installer can automatically obtain and configure JWT tokens for seamless authentication:
-
-1. Run the installer
-2. When prompted, choose "y" for JWT token configuration
-3. Enter your MediaTek credentials
-4. The installer will automatically:
-   - Detect the best available MLOP endpoint
-   - Obtain a JWT token
-   - Configure authentication headers
-
-### Option 2: Manual API Key Setup
-If you prefer manual configuration or encounter issues with JWT authentication:
-
-1. Visit [MediaTek MLOP Gateway for OA](https://mlop-azure-gateway.mediatek.inc/auth/login) / [MediaTek MLOP Gateway for SWRD](https://mlop-azure-rddmz.mediatek.inc/auth/login) to login
-2. Obtain your GAISF API key
-3. Manually configure the key in your settings
-
-**Note**: The installer automatically detects network connectivity and chooses between HTTP/HTTPS protocols for optimal compatibility.
-
-## Installation Features
-
-The installer includes advanced capabilities for reliable setup:
-
-### Smart Dependency Management
-- **Node.js 22+ Detection**: Automatically checks and installs the required Node.js version
-- **Platform-Specific Installation**: 
-  - **macOS**: Uses Homebrew for automatic installation
-  - **Linux**: Supports multiple package managers (apt, dnf, yum, pacman)
-  - **Windows**: Provides direct download links with guided installation
-
-### Intelligent Network Detection
-- **Multi-Registry Support**: Automatically tests MediaTek internal npm registries for optimal download speed
-- **Endpoint Auto-Selection**: Detects the best available MLOP gateway endpoint
-- **Fallback Mechanisms**: Seamlessly switches to backup servers if primary connections fail
-
-### Configuration Management
-- **System-Level Installation**: Supports both user-level and system-wide configurations
-- **Multi-Platform Binaries**: Installs platform-specific claude_analysis binaries with proper naming
-- **Managed Settings**: Automatically generates optimized settings.json with telemetry and MCP server support
+- Auto-detects internal registries and MLOP gateways to improve reliability
+- If Claude Code is already installed, runs an update to get the latest version (equivalent to `claude update`)
 
 ---
 
-## Installation
+## Step-by-step installation
 
-### Step 1: Download
-Download the latest installer package from:
-https://gitea.mediatek.inc/IT-GAIA/claude-code-monitor/releases
+### 1) Download
+Get the latest installer for your OS from:
+https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 
-### Step 2: Extract and Run
-1. Extract the downloaded zip file
-2. Open a terminal/command prompt in the extracted folder
-3. Run the installer:
-   - **Linux/macOS**: `./installer`
-   - **Windows**: `installer.exe`
+Choose the zip that matches your platform (Windows, macOS Intel/Apple Silicon, or Linux x64/ARM64).
 
-### Step 3: Configure Authentication
-During installation, you'll be prompted to configure authentication:
+### 2) Extract
+Unzip the downloaded file to a folder you can access from a terminal/command prompt.
 
-1. **JWT Token Setup (Recommended)**:
-   - Choose "y" when asked about JWT token configuration
+### 3) Run the installer
+- macOS/Linux
+   - Open Terminal in the unzipped folder
+   - If needed, make it executable: chmod +x ./installer
+   - Run: ./installer
+   - macOS: you can also double-click the "installer" to launch it in Terminal
+
+- Windows
+   - Double-click installer.exe, or run it from PowerShell
+
+### 4) Follow the prompts
+- If Node.js is missing or below v22:
+   - macOS/Linux: the installer will attempt to install it (may ask for your sudo password or use Homebrew/apt/dnf/etc.)
+   - Windows: you’ll see a download link; install Node.js from that link, then run the installer again
+
+- Authentication setup (recommended):
+   - When asked “Do you want to configure JWT token for API authentication? (y/N)”, choose y
    - Enter your MediaTek username and password
-   - The installer will securely obtain and configure your JWT token
+   - If automatic token retrieval fails, you’ll be asked to paste an API key you can get after logging in to:
+      - OA: https://mlop-azure-gateway.mediatek.inc/auth/login
+      - SWRD: https://mlop-azure-rddmz.mediatek.inc/auth/login
+   - Choose N to skip for now; you can add credentials later in ~/.claude/settings.json
 
-2. **Skip JWT Setup**:
-   - Choose "N" to skip JWT configuration
-   - You can manually configure API keys later if needed
+### 5) Verify
+- Open a new terminal and run: claude --version
+- You should see a version printed. If not, see Troubleshooting below.
 
-The installer automatically handles all technical configuration including:
-- Network endpoint detection and selection
-- Registry fallback configuration
-- Platform-specific binary installation
-- Optimized Claude Code settings
+---
 
-## Important for Windows Users
-
-**⚠️ Windows users must install Node.js manually first!**
-
-If you don't have Node.js installed, the installer will:
-1. Show you the direct download link for Node.js
-2. Exit so you can install it
-3. Ask you to run the installer again after Node.js is installed
-
-**Quick steps for Windows:**
-1. Download Node.js from the link provided by the installer
-2. Install the Node.js MSI package
-3. Restart your command prompt
-4. Run the installer again
-
-## System Requirements
-
-- **Operating System**: Windows, macOS, or Linux
-- **Node.js**: Version 22 or higher (automatically installed on macOS/Linux)
-- **Internet connection**: Required for downloading components and authentication
-- **Credentials**: MediaTek account for JWT authentication (optional but recommended)
-
-## Installation Locations
-
-The installer creates the following files and directories:
-
-### User-Level Installation (Default)
-- **Claude CLI**: Installed globally via npm
-- **Configuration**: `~/.claude/settings.json`
-- **Binary**: `~/.claude/claude_analysis-{platform}-{arch}[.exe]`
-
-### System-Level Installation (When Available)
-- **macOS**: `/Library/Application Support/ClaudeCode/`
-- **Linux**: `/etc/claude-code/`
-- **Windows**: `C:\ProgramData\ClaudeCode\`
-
-The installer automatically chooses the best installation method based on system permissions and requirements.
+## Requirements
+- Windows, macOS, or Linux
+- Node.js v22 or newer (macOS/Linux can be installed by the installer; Windows must install manually if missing)
+- Internet access (for downloads and authentication)
 
 ## Troubleshooting
 
-**Problem**: `claude --version` doesn't work after installation
-**Solution**: Restart your terminal or add npm's global bin directory to your PATH
+- “claude: command not found”
+   - Restart your terminal so PATH updates take effect
+   - Ensure npm’s global bin is on PATH
 
-**Problem**: JWT authentication fails during installation
-**Solution**: 
-- Verify your MediaTek credentials are correct
-- Check network connectivity to MLOP gateways
-- Skip JWT setup and configure manually if needed
+- Node.js installation troubles (macOS/Linux)
+   - Manually install Node.js v22+ from https://nodejs.org/ and rerun the installer
 
-**Problem**: Node.js installation fails on Linux/macOS
-**Solution**: 
-- The installer tries multiple package managers automatically
-- If all fail, manually install Node.js 22+ from https://nodejs.org/
-- Re-run the installer after manual Node.js installation
+- Node.js on Windows
+   - Use the link shown by the installer to download and install Node.js, then rerun
 
-**Problem**: Installation fails with network errors
-**Solution**: 
-- The installer automatically tries backup registries and endpoints
-- Ensure you have internet connectivity
-- Try running behind a corporate firewall with appropriate proxy settings
+- Authentication issues
+   - Verify your MediaTek credentials
+   - If JWT setup fails, use the manual API key fallback as prompted
 
-**Problem**: Need to reinstall or update
-**Solution**: You can safely run the installer multiple times - it detects existing installations and updates appropriately
+## Links
+- Official Claude Code docs: https://docs.anthropic.com/en/docs/claude-code
+- Settings: https://docs.anthropic.com/en/docs/claude-code/settings
 
-**Problem**: Configuration file not being read
-**Solution**: The installer creates configuration in multiple locations. Check:
-- `~/.claude/settings.json` (user-level)
-- System-level managed settings (OS-specific paths)
-- Refer to [official configuration documentation](https://docs.anthropic.com/en/docs/claude-code/settings#configuration-file) for additional locations
+---
 
-## Additional Resources
+## Expected files after installation
 
-- [Official Documentation](https://docs.anthropic.com/en/docs/claude-code)
-- [Settings Documentation](https://docs.anthropic.com/en/docs/claude-code/settings)
-- [Sub-agents Feature](https://docs.anthropic.com/en/docs/claude-code/sub-agents) - Explore agent capabilities for specialized tasks
-- [MCP Integration](https://docs.anthropic.com/en/docs/claude-code/mcp) - Learn about Model Context Protocol support
+Directory layout:
 
-## Getting Help
+```
+├── .claude
+│   ├── claude_analysis-linux-amd64
+│   └── settings.json
+```
 
-If you encounter issues:
-1. Make sure you have internet connectivity
-2. Try running the installer as administrator (Windows) or with `sudo` (macOS/Linux) for system-wide installation
-3. Check that Node.js is properly installed with `node --version` (should be 22+)
-4. For JWT authentication issues, verify your MediaTek account credentials
-5. Check the installer output for specific error messages and retry with different options if needed
+Sample `~/.claude/settings.json`:
 
-## New Features in This Version
-
-### Enhanced Authentication
-- **Automatic JWT Token Management**: Secure credential handling with automatic token refresh
-- **Smart Endpoint Detection**: Automatically selects the best available MLOP gateway
-- **Credential Security**: Password input is hidden on Unix systems for security
-
-### Improved Network Reliability
-- **Multi-Registry Support**: Automatic fallback between MediaTek internal npm registries
-- **Connectivity Testing**: Pre-installation network checks ensure optimal download paths
-- **Protocol Auto-Selection**: Intelligent HTTP/HTTPS selection based on network conditions
-
-### Advanced Installation Options
-- **Platform-Specific Binaries**: Properly named binaries for each platform and architecture
-- **System-Level Configuration**: Support for enterprise-wide managed settings
-- **Dependency Auto-Installation**: Automated Node.js setup across all supported platforms
-
-### Configuration Enhancements
-- **Optimized Default Settings**: Pre-configured telemetry, MCP servers, and co-authoring features
-- **Flexible Configuration Paths**: Support for both user and system-level configuration files
-- **Interactive Setup**: User-friendly prompts for authentication and configuration choices
+```json
+{
+   "env": {
+      "ANTHROPIC_BEDROCK_BASE_URL": "https://mlop-azure-gateway.mediatek.inc",
+      "ANTHROPIC_CUSTOM_HEADERS": "api-key: <<api_key>>",
+      "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+      "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+      "CLAUDE_CODE_SKIP_BEDROCK_AUTH": "1",
+      "CLAUDE_CODE_USE_BEDROCK": "1",
+      "DISABLE_TELEMETRY": "1"
+   },
+   "includeCoAuthoredBy": true,
+   "enableAllProjectMcpServers": true,
+   "hooks": {
+      "Stop": [
+         {
+            "matcher": "*",
+            "hooks": [
+               {
+                  "type": "command",
+                  "command": "/proj/ds906659/.claude/claude_analysis-linux-amd64"
+               }
+            ]
+         }
+      ]
+   }
+}
+```
