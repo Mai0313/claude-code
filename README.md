@@ -7,13 +7,13 @@ English | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md)
 This guide shows how to install the Claude Code CLI using the bundled installer. The installer will:
 
 1) Check Node.js (needs v22+). On macOS/Linux it tries to install it automatically; on Windows it shows the official download page (https://nodejs.org/en/download/) and exits so you can install Node.js, then rerun.
-2) Install the Claude Code CLI globally via npm: @anthropic-ai/claude-code.
+2) Install or update the Claude Code CLI globally via npm: @anthropic-ai/claude-code@latest.
 3) Create ~/.claude/settings.json with sensible defaults and optional authentication.
 
 The installer also:
 
 - Auto-detects internal registries and MLOP gateways to improve reliability
-- If Claude Code is already installed, runs an update to get the latest version (equivalent to `claude update`)
+- Always runs npm install of @anthropic-ai/claude-code@latest to ensure you have the newest version (no separate `claude update` step)
 - When creating settings, if `~/.claude/settings.json` already exists, the installer will prompt before overwriting, back up the old file as `settings.backup_YYYYMMDD_HHMMSS.json`, then write the new one
 
 ---

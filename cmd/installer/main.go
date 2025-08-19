@@ -142,29 +142,9 @@ func run() error {
 	}
 
 	// 2) Install @anthropic-ai/claude-code with registry fallbacks
-	if checkClaudeInstalled() {
-		logger.Info("Claude CLI already installed. Skipping installation.")
-	} else {
-		err := installClaudeCLI()
-		if err != nil {
-			return err
-		}
-	}
-
-	// 2.1) Run claude update to ensure latest version
-	logger.Info("Updating Claude CLI to latest version...")
-	// Prefer an explicit path to the claude binary if available
-	var updateErr error
-	if path, ok := findClaudeBinary(); ok {
-		updateErr = runCmdLogged(path, "update")
-	} else {
-		updateErr = runCmdLogged("claude", "update")
-	}
-	if updateErr != nil {
-		logger.Warn("Failed to update Claude CLI", zap.Error(updateErr))
-		// Don't return error as this is not critical
-	} else {
-		logger.Info("Claude CLI updated successfully.")
+	logger.Info("Installing/Updating Claude CLI (@anthropic-ai/claude-code@latest)...")
+	if err := installClaudeCLI(); err != nil {
+		return err
 	}
 
 	// 3) Move claude_analysis to ~/.claude with platform-specific name
@@ -229,15 +209,6 @@ func checkNodeVersion() bool {
 	}
 
 	return major >= 22
-}
-
-// checkClaudeInstalled returns true if Claude CLI is already installed and working
-func checkClaudeInstalled() bool {
-	if path, ok := findClaudeBinary(); ok {
-		// Confirm it actually runs
-		return exec.Command(path, "--version").Run() == nil
-	}
-	return false
 }
 
 // getGAISFToken performs login to get GAISF token from the MLOP gateway
@@ -580,7 +551,7 @@ func installClaudeCLI() error {
 	// Use the best working registry found by selectRegistryURL (mapping-based)
 	registry := selectRegistryURL()
 
-	args := []string{"install", "-g", "@anthropic-ai/claude-code"}
+	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest"}
 	if registry != "" {
 		args = append(args, "--registry="+registry)
 		logger.Info("Installing @anthropic-ai/claude-code", zap.String("registry", registry))

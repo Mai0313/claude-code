@@ -7,12 +7,12 @@
 本指南說明如何用隨附的安裝程式安裝 Claude Code CLI。安裝程式會：
 
 1) 檢查 Node.js（需要 v22+）。在 macOS/Linux 嘗試自動安裝；Windows 會顯示官方下載頁（https://nodejs.org/en/download/）並結束，請先安裝後再重跑。
-2) 透過 npm 全域安裝 Claude Code CLI：@anthropic-ai/claude-code。
+2) 透過 npm 全域安裝或更新 Claude Code CLI：@anthropic-ai/claude-code@latest。
 3) 建立 ~/.claude/settings.json，內含預設與可選擇的認證設定。
 
 此外會自動偵測內部 npm registry 與 MLOP gateway，提升安裝成功率。
 
-若系統已安裝 Claude Code，安裝程式會嘗試幫你更新到最新版（等同於執行 `claude update`）。
+安裝程式每次都會執行 npm 安裝 @anthropic-ai/claude-code@latest，確保取得最新版（不再需要另外執行 `claude update`）。
 
 - 建立設定檔時，若 `~/.claude/settings.json` 已存在，安裝程式會先詢問是否覆蓋；同意後會先備份舊檔為 `settings.backup_YYYYMMDD_HHMMSS.json`，再寫入新檔。
 
