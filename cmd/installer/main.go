@@ -41,6 +41,40 @@ type HookAction = Hook
 
 var logger *zap.Logger
 
+// EnvironmentConfig represents a domain environment and its associated endpoints
+type EnvironmentConfig struct {
+	// Domain is the value to send to the login endpoint (e.g., "oa", "swrd")
+	Domain string
+	// MLOPHosts are the candidate base hosts for GAISF/MLOP gateway
+	MLOPHosts []string
+	// RegistryHosts are the candidate npm registry mirrors for this domain
+	RegistryHosts []string
+}
+
+// environmentConfigs defines the available domain environments and their mappings.
+// Add new mappings here to support additional domains.
+var environmentConfigs = []EnvironmentConfig{
+	{
+		Domain:        "oa",
+		MLOPHosts:     []string{"mlop-azure-gateway.mediatek.inc"},
+		RegistryHosts: []string{"oa-mirror.mediatek.inc/repository/npm"},
+	},
+	{
+		Domain:        "swrd",
+		MLOPHosts:     []string{"mlop-azure-rddmz.mediatek.inc"},
+		RegistryHosts: []string{"swrd-mirror.mediatek.inc/repository/npm"},
+	},
+}
+
+// Environment is the resolved and connectivity-validated selection
+type Environment struct {
+	Config      EnvironmentConfig
+	MLOPBaseURL string // with scheme
+	RegistryURL string // with scheme (or empty to use default)
+}
+
+var selectedEnv *Environment
+
 // initLogger initializes the zap logger with console output
 func initLogger() {
 	config := zap.NewDevelopmentConfig()
@@ -216,8 +250,9 @@ func checkClaudeInstalled() bool {
 // getGAISFToken performs login to get GAISF token from the MLOP gateway
 // Returns the GAISF token string or error if login fails
 func getGAISFToken(username, password string) (string, error) {
-	// Use connectivity-selected base URL
+	// Use connectivity-selected base URL and domain via unified environment selection
 	baseURL := selectGaisfURL()
+	env := ensureEnvironmentSelected()
 	loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
 
 	// Cookie-aware HTTP client with redirect support (default)
@@ -248,7 +283,7 @@ func getGAISFToken(username, password string) (string, error) {
 		"username":         {username},
 		"password":         {password},
 		"expiration_hours": {"720"}, // 30 * 24
-		"domain":           {"oa"},
+		"domain":           {env.Config.Domain},
 	}
 
 	req, err := http.NewRequest(http.MethodPost, loginURL, strings.NewReader(form.Encode()))
@@ -324,8 +359,7 @@ func extractFirstTextarea(r io.Reader) (string, error) {
 	}
 	var result string
 	var found bool
-	var textContent func(*html.Node) string
-	textContent = func(n *html.Node) string {
+	textContent := func(n *html.Node) string {
 		var b strings.Builder
 		var walk func(*html.Node)
 		walk = func(nn *html.Node) {
@@ -356,14 +390,6 @@ func extractFirstTextarea(r io.Reader) (string, error) {
 		return "", errors.New("no textarea found")
 	}
 	return result, nil
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func installNodeDarwin() error {
@@ -477,41 +503,74 @@ func checkURLReachability(url string, timeout time.Duration) error {
 
 // selectRegistryURL checks connectivity and returns the best npm registry to use
 func selectRegistryURL() string {
-	registryHosts := []string{
-		"oa-mirror.mediatek.inc/repository/npm",
-		"swrd-mirror.mediatek.inc/repository/npm",
+	env := ensureEnvironmentSelected()
+	if env.RegistryURL != "" {
+		logger.Info("Using registry", zap.String("url", env.RegistryURL))
 	}
-
-	for _, host := range registryHosts {
-		if workingURL := checkConnectivity(host, 3*time.Second); workingURL != "" {
-			logger.Info("Found working registry", zap.String("url", workingURL))
-			return workingURL
-		}
-	}
-
-	return "" // Use default registry
+	return env.RegistryURL // empty means use default registry
 }
 
 // selectGaisfURL checks connectivity and returns the best MLOP URL to use
 func selectGaisfURL() string {
-	mlopHosts := []string{
-		"mlop-azure-gateway.mediatek.inc",
-		"mlop-azure-rddmz.mediatek.inc",
+	env := ensureEnvironmentSelected()
+	logger.Info("Using MLOP gateway", zap.String("url", env.MLOPBaseURL), zap.String("domain", env.Config.Domain))
+	return env.MLOPBaseURL
+}
+
+// ensureEnvironmentSelected resolves and caches the environment selection by testing connectivity
+func ensureEnvironmentSelected() *Environment {
+	if selectedEnv != nil {
+		return selectedEnv
 	}
 
-	for _, host := range mlopHosts {
-		if workingURL := checkConnectivity(host, 3*time.Second); workingURL != "" {
-			logger.Info("Using MLOP gateway", zap.String("url", workingURL))
-			return workingURL
+	// Try each configured environment in order; pick the first with a reachable MLOP host
+	for _, cfg := range environmentConfigs {
+		var chosenMLOP string
+		for _, host := range cfg.MLOPHosts {
+			if url := checkConnectivity(host, 3*time.Second); url != "" {
+				chosenMLOP = url
+				break
+			}
 		}
+		if chosenMLOP == "" {
+			continue
+		}
+		// Registry is optional; use first reachable, else empty to fall back to default
+		var chosenRegistry string
+		for _, host := range cfg.RegistryHosts {
+			if url := checkConnectivity(host, 3*time.Second); url != "" {
+				chosenRegistry = url
+				break
+			}
+		}
+		selectedEnv = &Environment{
+			Config:      cfg,
+			MLOPBaseURL: chosenMLOP,
+			RegistryURL: chosenRegistry,
+		}
+		return selectedEnv
 	}
 
-	// Fallback: just use first option with HTTPS if no connectivity check worked
-	return "https://mlop-azure-gateway.mediatek.inc"
+	// As a last resort, fall back to the first environment with HTTPS for MLOP host, without connectivity check
+	if len(environmentConfigs) > 0 {
+		cfg := environmentConfigs[0]
+		mlopHost := cfg.MLOPHosts[0]
+		selectedEnv = &Environment{
+			Config:      cfg,
+			MLOPBaseURL: "https://" + strings.TrimSuffix(strings.TrimPrefix(mlopHost, "https://"), "/"),
+			RegistryURL: "", // default registry
+		}
+		logger.Warn("Falling back to default environment without connectivity check", zap.String("domain", cfg.Domain), zap.String("mlop", selectedEnv.MLOPBaseURL))
+		return selectedEnv
+	}
+
+	// Should not happen; create a stub
+	selectedEnv = &Environment{Config: EnvironmentConfig{Domain: "oa"}, MLOPBaseURL: "https://mlop-azure-gateway.mediatek.inc"}
+	return selectedEnv
 }
 
 func installClaudeCLI() error {
-	// Use the best working registry found by selectRegistryURL
+	// Use the best working registry found by selectRegistryURL (mapping-based)
 	registry := selectRegistryURL()
 
 	args := []string{"install", "-g", "@anthropic-ai/claude-code"}
@@ -661,7 +720,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		return nil
 	}
 
-	// Always use connectivity-based selection for MLOP URL
+	// Always use connectivity-based selection for MLOP URL via environment selection
 	chosen := selectGaisfURL()
 
 	// Try to get GAISF token for API authentication (only ask when we're going to write)
