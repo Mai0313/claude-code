@@ -43,7 +43,7 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
    - Windows：會顯示下載連結；請先安裝 Node.js 後再重新執行安裝程式
 
 - 認證設定（建議）：
-   - 當出現「Do you want to configure JWT token for API authentication? (y/N)」時，選 y
+   - 當出現「Do you want to configure GAISF token for API authentication? (y/N)」時，選 y
    - 輸入您的 MediaTek 帳號與密碼
    - 若自動取得 token 失敗，將提示您貼上 API key。請先登入：
       - OA：https://mlop-azure-gateway.mediatek.inc/auth/login
@@ -75,7 +75,7 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 
 - 認證問題
    - 檢查 MediaTek 憑證
-   - 若 JWT 設定失敗，依提示改用手動 API key
+   - 若 GAISF Token 取得失敗，依提示改用手動 API key
 
 ## 參考
 - Claude Code 官方文件：https://docs.anthropic.com/zh-TW/docs/claude-code

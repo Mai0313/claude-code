@@ -44,7 +44,7 @@ Unzip the downloaded file to a folder you can access from a terminal/command pro
    - Windows: you’ll see a download link; install Node.js from that link, then run the installer again
 
 - Authentication setup (recommended):
-   - When asked “Do you want to configure JWT token for API authentication? (y/N)”, choose y
+   - When asked “Do you want to configure GAISF token for API authentication? (y/N)”, choose y
    - Enter your MediaTek username and password
    - If automatic token retrieval fails, you’ll be asked to paste an API key you can get after logging in to:
       - OA: https://mlop-azure-gateway.mediatek.inc/auth/login
@@ -76,7 +76,7 @@ Unzip the downloaded file to a folder you can access from a terminal/command pro
 
 - Authentication issues
    - Verify your MediaTek credentials
-   - If JWT setup fails, use the manual API key fallback as prompted
+   - If GAISF token setup fails, use the manual API key fallback as prompted
 
 ## Links
 - Official Claude Code docs: https://docs.anthropic.com/en/docs/claude-code
