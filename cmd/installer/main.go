@@ -662,7 +662,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 				fmt.Printf("Warning: Failed to get JWT token: %v\n", err)
 				fmt.Println("\n=== Manual API Key Setup ===")
 				fmt.Printf("Please follow these steps to manually obtain your API key:\n")
-				fmt.Printf("1. Open this URL in your browser: %s\n", chosen)
+				fmt.Printf("1. Open this URL in your browser: %s\n", `chosen`+"/auth/login")
 				fmt.Printf("2. Log in with your credentials\n")
 				fmt.Printf("3. Navigate to the API key management section\n")
 				fmt.Printf("4. Generate or copy your API key\n")
