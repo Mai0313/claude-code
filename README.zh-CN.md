@@ -14,6 +14,8 @@
 
 如果系统已安装 Claude Code，安装程序会尝试为你更新到最新版本（等同于执行 `claude update`）。
 
+- 当创建设置文件时，若 `~/.claude/settings.json` 已存在，安装程序会先询问是否覆盖；同意后会将旧文件备份为 `settings.backup_YYYYMMDD_HHMMSS.json`，再写入新文件。
+
 ---
 
 ## 分步安装
@@ -43,12 +45,13 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
    - Windows：会显示官方下载链接；请先安装 Node.js，再重新运行安装程序
 
 - 认证设置（推荐）：
-   - 当出现“Do you want to configure GAISF token for API authentication? (y/N)”时，选择 y
-   - 输入你的 MediaTek 用户名与密码
-   - 若自动获取 token 失败，会提示你粘贴 API key。请先登录：
+   - 出现“Do you want to configure GAISF token for API authentication? (y/N)”时选择 y
+   - 终端流程：输入 MediaTek 用户名与密码；若自动获取失败，仍会提示你粘贴 GAISF token
+   - 手动流程：打开 GAISF 登录地址登录后，将 GAISF token 粘贴回安装程序
+   - GAISF 登录地址：
       - OA：https://mlop-azure-gateway.mediatek.inc/auth/login
       - SWRD：https://mlop-azure-rddmz.mediatek.inc/auth/login
-   - 若暂不设置，选 N；之后可在 ~/.claude/settings.json 中补充
+   - 若暂不设置，选 N；之后可在 `~/.claude/settings.json` 中补充 token
 
 ### 5) 校验
 - 打开新终端运行：claude --version
@@ -75,7 +78,7 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 
 - 认证问题
    - 确认 MediaTek 凭据
-   - 若 GAISF API 取得失败，按提示改用手动 API key
+   - 若 GAISF token 设置失败，手动打开 GAISF 登录地址并在提示时粘贴你的 GAISF token
 
 ## 参考
 - Claude Code 官方文档：https://docs.anthropic.com/zh-CN/docs/claude-code
@@ -99,7 +102,7 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 {
    "env": {
       "ANTHROPIC_BEDROCK_BASE_URL": "https://mlop-azure-gateway.mediatek.inc",
-      "ANTHROPIC_CUSTOM_HEADERS": "api-key: <<api_key>>",
+   "ANTHROPIC_CUSTOM_HEADERS": "api-key: <<gaisf_token>>",
       "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
       "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
       "CLAUDE_CODE_SKIP_BEDROCK_AUTH": "1",

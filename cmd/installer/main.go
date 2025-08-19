@@ -717,6 +717,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	response = strings.TrimSpace(strings.ToLower(response))
 
 	if response == "y" || response == "yes" {
+		// Console-based login flow
 		fmt.Print("Enter username: ")
 		username, _ := reader.ReadString('\n')
 		username = strings.TrimSpace(username)
@@ -743,7 +744,6 @@ func writeSettingsJSON(installedBinaryPath string) error {
 				fmt.Print("Enter your GAISF token (or press Enter to skip): ")
 				apiKey, _ := reader.ReadString('\n')
 				apiKey = strings.TrimSpace(apiKey)
-
 				if apiKey != "" {
 					apiKeyHeader = "api-key: " + apiKey
 					logger.Info("GAISF token configured successfully.")

@@ -14,6 +14,7 @@ The installer also:
 
 - Auto-detects internal registries and MLOP gateways to improve reliability
 - If Claude Code is already installed, runs an update to get the latest version (equivalent to `claude update`)
+- When creating settings, if `~/.claude/settings.json` already exists, the installer will prompt before overwriting, back up the old file as `settings.backup_YYYYMMDD_HHMMSS.json`, then write the new one
 
 ---
 
@@ -45,11 +46,12 @@ Unzip the downloaded file to a folder you can access from a terminal/command pro
 
 - Authentication setup (recommended):
    - When asked “Do you want to configure GAISF token for API authentication? (y/N)”, choose y
-   - Enter your MediaTek username and password
-   - If automatic token retrieval fails, you’ll be asked to paste an API key you can get after logging in to:
+   - Console flow: enter your MediaTek username and password; if automatic retrieval fails, you’ll be prompted to paste your GAISF token
+   - Manual flow: open the GAISF login URL, log in, and paste your GAISF token when prompted
+   - GAISF login URLs:
       - OA: https://mlop-azure-gateway.mediatek.inc/auth/login
       - SWRD: https://mlop-azure-rddmz.mediatek.inc/auth/login
-   - Choose N to skip for now; you can add credentials later in ~/.claude/settings.json
+   - Choose N to skip for now; you can add the token later in `~/.claude/settings.json`
 
 ### 5) Verify
 - Open a new terminal and run: claude --version
@@ -76,7 +78,7 @@ Unzip the downloaded file to a folder you can access from a terminal/command pro
 
 - Authentication issues
    - Verify your MediaTek credentials
-   - If GAISF token setup fails, use the manual API key fallback as prompted
+   - If GAISF token setup fails, open the GAISF login URL and paste your GAISF token when prompted
 
 ## Links
 - Official Claude Code docs: https://docs.anthropic.com/en/docs/claude-code
@@ -100,7 +102,7 @@ Sample `~/.claude/settings.json`:
 {
    "env": {
       "ANTHROPIC_BEDROCK_BASE_URL": "https://mlop-azure-gateway.mediatek.inc",
-      "ANTHROPIC_CUSTOM_HEADERS": "api-key: <<api_key>>",
+   "ANTHROPIC_CUSTOM_HEADERS": "api-key: <<gaisf_token>>",
       "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
       "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
       "CLAUDE_CODE_SKIP_BEDROCK_AUTH": "1",
