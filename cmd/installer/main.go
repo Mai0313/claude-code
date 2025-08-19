@@ -13,13 +13,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/net/html"
 )
 
 type Settings struct {
@@ -216,191 +216,146 @@ func checkClaudeInstalled() bool {
 // getGAISFToken performs login to get GAISF token from the MLOP gateway
 // Returns the GAISF token string or error if login fails
 func getGAISFToken(username, password string) (string, error) {
-	// Get gateway URL using selectGaisfURL
-	gatewayURL := selectGaisfURL()
-	loginURL := gatewayURL + "/auth/login"
+	// Use connectivity-selected base URL
+	baseURL := selectGaisfURL()
+	loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
 
-	// Create HTTP client with fresh cookie jar for each attempt
+	// Cookie-aware HTTP client with redirect support (default)
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create cookie jar: %w", err)
 	}
+	client := &http.Client{Jar: jar, Timeout: 30 * time.Second}
 
-	client := &http.Client{
-		Jar:     jar,
-		Timeout: 30 * time.Second,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // Disable SSL verification like Python version
-			},
-		},
-	}
-
-	// Step 1: Get CSRF token from login page
+	// Step 1: GET login page and parse CSRF from input[name="_csrf"]
 	resp, err := client.Get(loginURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to get login page: %w", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("login page request failed with status: %d", resp.StatusCode)
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+		return "", fmt.Errorf("login page request failed, status: %d", resp.StatusCode)
 	}
 
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read login page: %w", err)
-	}
-	responseText := string(body)
-
-	// Extract CSRF token from HTML form with multiple patterns
-	csrfPatterns := []string{
-		`<input type="hidden" name="_csrf" value="([^"]+)"`,
-		`name="_csrf" value="([^"]+)"`,
-		`_csrf.*?value="([^"]+)"`,
-		`csrf.*?value="([^"]+)"`,
+	csrfToken, err := extractCSRFToken(resp.Body)
+	if err != nil || csrfToken == "" {
+		return "", fmt.Errorf("unable to find CSRF token on login page: %w", err)
 	}
 
-	var csrfToken string
-	for _, pattern := range csrfPatterns {
-		re := regexp.MustCompile(`(?i)` + pattern)
-		if matches := re.FindStringSubmatch(responseText); len(matches) > 1 {
-			csrfToken = matches[1]
-			break
-		}
-	}
-
-	// If not found in form inputs, try meta tag
-	if csrfToken == "" {
-		metaPattern := `<meta name="csrf-token" content="([^"]+)"`
-		re := regexp.MustCompile(`(?i)` + metaPattern)
-		if matches := re.FindStringSubmatch(responseText); len(matches) > 1 {
-			csrfToken = matches[1]
-		}
-	}
-
-	// Also try cookie-based CSRF token as fallback
-	if csrfToken == "" {
-		parsedURL, _ := url.Parse(loginURL)
-		for _, cookie := range jar.Cookies(parsedURL) {
-			if cookie.Name == "csrf_token" || cookie.Name == "_csrf" {
-				csrfToken = cookie.Value
-				break
-			}
-		}
-	}
-
-	if csrfToken == "" {
-		return "", errors.New("could not extract CSRF token from login page")
-	}
-
-	// Step 2: Login to get GAISF token
-	formData := url.Values{
+	// Step 2: POST credentials to /auth/login
+	form := url.Values{
 		"_csrf":            {csrfToken},
 		"username":         {username},
 		"password":         {password},
-		"expiration_hours": {"720"},
+		"expiration_hours": {"720"}, // 30 * 24
 		"domain":           {"oa"},
 	}
 
-	// Create login request with proper headers and URL-encoded form data
-	reqBody := formData.Encode()
-
-	req, err := http.NewRequest("POST", loginURL, strings.NewReader(reqBody))
+	req, err := http.NewRequest(http.MethodPost, loginURL, strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("failed to create login request: %w", err)
 	}
-
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Referer", loginURL)
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
-	resp, err = client.Do(req)
+	resp2, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("login request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp2.Body.Close()
+	if resp2.StatusCode < 200 || resp2.StatusCode >= 400 {
+		// Read a small portion for context
+		body, _ := io.ReadAll(io.LimitReader(resp2.Body, 1024))
+		return "", fmt.Errorf("login failed, status %d: %s", resp2.StatusCode, string(body))
+	}
 
-	// Read response body
-	body, err = io.ReadAll(resp.Body)
+	// Step 3: Parse token from first <textarea>
+	token, err := extractFirstTextarea(resp2.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read login response: %w", err)
+		return "", fmt.Errorf("failed to parse token from response: %w", err)
 	}
-
-	responseText = string(body)
-
-	// Check for specific error messages
-	if strings.Contains(responseText, "Invalid CSRF token") {
-		return "", errors.New("CSRF token validation failed")
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return "", errors.New("could not find token in login response")
 	}
-	if strings.Contains(responseText, "Login Failed") || strings.Contains(responseText, "Invalid credentials") {
-		return "", errors.New("invalid username or password")
+	return token, nil
+}
+
+// extractCSRFToken parses the HTML document and returns the value of input[name="_csrf"].
+func extractCSRFToken(r io.Reader) (string, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return "", err
 	}
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("login failed with status %d: %s", resp.StatusCode, responseText[:min(500, len(responseText))])
-	}
-
-	// Extract GAISF token (JWT format) using multiple patterns
-	jwtPatterns := []string{
-		`eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*`,
-		`"token":\s*"(eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*)"`,
-		`id="token-value"[^>]*>([^<]+)`,
-		`class="token"[^>]*>([^<]+)`,
-	}
-
-	for _, pattern := range jwtPatterns {
-		re := regexp.MustCompile(pattern)
-		if matches := re.FindStringSubmatch(responseText); len(matches) > 0 {
-			var token string
-			if len(matches) > 1 && matches[1] != "" {
-				token = matches[1]
-			} else {
-				token = matches[0]
-			}
-
-			// Validate token format (JWT)
-			if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
-				return token, nil
-			}
-		}
-	}
-
-	// If no token found but login seems successful, check for redirect
-	if (resp.StatusCode == 200 || resp.StatusCode == 302) && resp.Header.Get("Location") != "" {
-		redirectURL := resp.Header.Get("Location")
-		if !strings.HasPrefix(redirectURL, "http") {
-			// Relative URL, make it absolute
-			redirectURL = gatewayURL + redirectURL
-		}
-
-		redirectResp, err := client.Get(redirectURL)
-		if err == nil {
-			defer redirectResp.Body.Close()
-			redirectBody, err := io.ReadAll(redirectResp.Body)
-			if err == nil {
-				redirectText := string(redirectBody)
-				for _, pattern := range jwtPatterns {
-					re := regexp.MustCompile(pattern)
-					if matches := re.FindStringSubmatch(redirectText); len(matches) > 0 {
-						var token string
-						if len(matches) > 1 && matches[1] != "" {
-							token = matches[1]
-						} else {
-							token = matches[0]
-						}
-
-						// Validate token format (JWT)
-						if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
-							return token, nil
-						}
-					}
+	var csrf string
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "input") {
+			var nameVal, val string
+			for _, a := range n.Attr {
+				if strings.EqualFold(a.Key, "name") {
+					nameVal = a.Val
+				}
+				if strings.EqualFold(a.Key, "value") {
+					val = a.Val
 				}
 			}
+			if nameVal == "_csrf" {
+				csrf = val
+				return
+			}
+		}
+		for c := n.FirstChild; c != nil && csrf == ""; c = c.NextSibling {
+			f(c)
 		}
 	}
+	f(doc)
+	if csrf == "" {
+		return "", errors.New("_csrf not found")
+	}
+	return csrf, nil
+}
 
-	return "", fmt.Errorf("could not extract GAISF token from login response. Response: %s", responseText[:min(500, len(responseText))])
+// extractFirstTextarea returns the text content of the first <textarea> element.
+func extractFirstTextarea(r io.Reader) (string, error) {
+	doc, err := html.Parse(r)
+	if err != nil {
+		return "", err
+	}
+	var result string
+	var found bool
+	var textContent func(*html.Node) string
+	textContent = func(n *html.Node) string {
+		var b strings.Builder
+		var walk func(*html.Node)
+		walk = func(nn *html.Node) {
+			if nn.Type == html.TextNode {
+				b.WriteString(nn.Data)
+			}
+			for c := nn.FirstChild; c != nil; c = c.NextSibling {
+				walk(c)
+			}
+		}
+		walk(n)
+		return b.String()
+	}
+
+	var f func(*html.Node)
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && strings.EqualFold(n.Data, "textarea") && !found {
+			result = textContent(n)
+			found = true
+			return
+		}
+		for c := n.FirstChild; c != nil && !found; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(doc)
+	if !found {
+		return "", errors.New("no textarea found")
+	}
+	return result, nil
 }
 
 // min returns the minimum of two integers
