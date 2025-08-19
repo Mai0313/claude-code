@@ -614,46 +614,22 @@ func exeName(base string) string {
 }
 
 func writeSettingsJSON(installedBinaryPath string) error {
-	// Determine settings path first and handle overwrite/backup prompt early
+	// Resolve settings path and load existing settings (if any) for merge
 	homeDir, _ := os.UserHomeDir()
 	targetDir := filepath.Join(homeDir, ".claude")
 	target := filepath.Join(targetDir, "settings.json")
 
-	var (
-		existingSettings    *Settings
-		shouldWriteSettings = true
-	)
+	var existingSettings *Settings
 
 	if _, err := os.Stat(target); err == nil {
-		// Read existing for potential merge before renaming
 		if existingData, rerr := os.ReadFile(target); rerr == nil {
 			var es Settings
 			if jerr := json.Unmarshal(existingData, &es); jerr == nil {
 				existingSettings = &es
 			} else {
-				logger.Warn("Existing settings.json is not valid JSON; will overwrite with defaults", zap.Error(jerr))
+				logger.Warn("Existing settings.json is not valid JSON; proceeding with defaults", zap.Error(jerr))
 			}
 		}
-
-		if !askYesNo("settings.json already exists. Overwrite it? (y/N): ", false) {
-			logger.Info("User chose not to overwrite existing settings.json; skipping settings update.")
-			shouldWriteSettings = false
-		} else {
-			// Backup existing before overwrite
-			if err := os.MkdirAll(targetDir, 0o755); err != nil {
-				return fmt.Errorf("failed to ensure %s: %w", targetDir, err)
-			}
-			backupName := fmt.Sprintf("settings.backup_%s.json", time.Now().Format("20060102_150405"))
-			backupPath := filepath.Join(targetDir, backupName)
-			if err := os.Rename(target, backupPath); err != nil {
-				return fmt.Errorf("failed to backup existing settings.json: %w", err)
-			}
-			logger.Info("Backed up existing settings.json", zap.String("backup", backupPath))
-		}
-	}
-
-	if !shouldWriteSettings {
-		return nil
 	}
 
 	// Always use connectivity-based selection for MLOP URL via environment selection
@@ -713,7 +689,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 
 	// If we had valid existing settings, start from them and merge updates
 	if existingSettings != nil {
-		logger.Info("Found existing settings, merging configurations before overwrite...")
+		logger.Info("Found existing settings, merging configurations...")
 		settings = *existingSettings
 		if settings.Env == nil {
 			settings.Env = make(map[string]string)
