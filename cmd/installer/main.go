@@ -90,6 +90,16 @@ func run() error {
 		}
 	}
 
+	// 2.1) Run claude update to ensure latest version
+	fmt.Println("Updating Claude CLI to latest version...")
+	err := runCmdLogged("claude", "update")
+	if err != nil {
+		fmt.Printf("Warning: Failed to update Claude CLI: %v\n", err)
+		// Don't return error as this is not critical
+	} else {
+		fmt.Println("Claude CLI updated successfully.")
+	}
+
 	// 3) Move claude_analysis to ~/.claude with platform-specific name
 	destPath, err := installClaudeAnalysisBinary()
 	if err != nil {
@@ -199,8 +209,6 @@ func getJWTToken(username, password string) (string, error) {
 		},
 	}
 
-	fmt.Printf("Debug: Starting login process for user: %s\n", username)
-
 	// Step 1: Get CSRF token from login page
 	resp, err := client.Get(loginURL)
 	if err != nil {
@@ -228,12 +236,10 @@ func getJWTToken(username, password string) (string, error) {
 	}
 
 	var csrfToken string
-	var tokenSource string
 	for _, pattern := range csrfPatterns {
 		re := regexp.MustCompile(`(?i)` + pattern)
 		if matches := re.FindStringSubmatch(responseText); len(matches) > 1 {
 			csrfToken = matches[1]
-			tokenSource = "form_input"
 			break
 		}
 	}
@@ -244,7 +250,6 @@ func getJWTToken(username, password string) (string, error) {
 		re := regexp.MustCompile(`(?i)` + metaPattern)
 		if matches := re.FindStringSubmatch(responseText); len(matches) > 1 {
 			csrfToken = matches[1]
-			tokenSource = "meta_tag"
 		}
 	}
 
@@ -254,7 +259,6 @@ func getJWTToken(username, password string) (string, error) {
 		for _, cookie := range jar.Cookies(parsedURL) {
 			if cookie.Name == "csrf_token" || cookie.Name == "_csrf" {
 				csrfToken = cookie.Value
-				tokenSource = "cookie"
 				break
 			}
 		}
@@ -263,9 +267,6 @@ func getJWTToken(username, password string) (string, error) {
 	if csrfToken == "" {
 		return "", errors.New("could not extract CSRF token from login page")
 	}
-
-	// Debug: Print CSRF token info (but mask the actual token for security)
-	fmt.Printf("Debug: CSRF token found via %s, length: %d bytes\n", tokenSource, len(csrfToken))
 
 	// Step 2: Login to get JWT token
 	formData := url.Values{
@@ -278,9 +279,6 @@ func getJWTToken(username, password string) (string, error) {
 
 	// Create login request with proper headers and URL-encoded form data
 	reqBody := formData.Encode()
-
-	// Debug: Print the encoded form data (but hide sensitive password)
-	fmt.Printf("Debug: Form data length: %d bytes\n", len(reqBody))
 
 	req, err := http.NewRequest("POST", loginURL, strings.NewReader(reqBody))
 	if err != nil {
@@ -297,9 +295,6 @@ func getJWTToken(username, password string) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	// Debug: Print response status
-	fmt.Printf("Debug: Login response status: %d\n", resp.StatusCode)
-
 	// Read response body
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {
@@ -310,7 +305,6 @@ func getJWTToken(username, password string) (string, error) {
 
 	// Check for specific error messages
 	if strings.Contains(responseText, "Invalid CSRF token") {
-		fmt.Printf("Debug: Server rejected CSRF token. Response snippet: %s\n", responseText[:min(200, len(responseText))])
 		return "", errors.New("CSRF token validation failed")
 	}
 	if strings.Contains(responseText, "Login Failed") || strings.Contains(responseText, "Invalid credentials") {
