@@ -213,8 +213,8 @@ func checkClaudeInstalled() bool {
 	return false
 }
 
-// getGAISFToken performs login to get JWT token from the MLOP gateway
-// Returns the JWT token string or error if login fails
+// getGAISFToken performs login to get GAISF token from the MLOP gateway
+// Returns the GAISF token string or error if login fails
 func getGAISFToken(username, password string) (string, error) {
 	// Get gateway URL using selectGaisfURL
 	gatewayURL := selectGaisfURL()
@@ -295,7 +295,7 @@ func getGAISFToken(username, password string) (string, error) {
 		return "", errors.New("could not extract CSRF token from login page")
 	}
 
-	// Step 2: Login to get JWT token
+	// Step 2: Login to get GAISF token
 	formData := url.Values{
 		"_csrf":            {csrfToken},
 		"username":         {username},
@@ -341,7 +341,7 @@ func getGAISFToken(username, password string) (string, error) {
 		return "", fmt.Errorf("login failed with status %d: %s", resp.StatusCode, responseText[:min(500, len(responseText))])
 	}
 
-	// Extract JWT token using multiple patterns
+	// Extract GAISF token (JWT format) using multiple patterns
 	jwtPatterns := []string{
 		`eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*`,
 		`"token":\s*"(eyJ[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*\.[A-Za-z0-9_.-]*)"`,
@@ -359,7 +359,7 @@ func getGAISFToken(username, password string) (string, error) {
 				token = matches[0]
 			}
 
-			// Validate JWT format
+			// Validate token format (JWT)
 			if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
 				return token, nil
 			}
@@ -390,7 +390,7 @@ func getGAISFToken(username, password string) (string, error) {
 							token = matches[0]
 						}
 
-						// Validate JWT format
+						// Validate token format (JWT)
 						if strings.Count(token, ".") == 2 && strings.HasPrefix(token, "eyJ") {
 							return token, nil
 						}
@@ -400,7 +400,7 @@ func getGAISFToken(username, password string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("could not extract JWT token from login response. Response: %s", responseText[:min(500, len(responseText))])
+	return "", fmt.Errorf("could not extract GAISF token from login response. Response: %s", responseText[:min(500, len(responseText))])
 }
 
 // min returns the minimum of two integers
@@ -709,9 +709,9 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	// Always use connectivity-based selection for MLOP URL
 	chosen := selectGaisfURL()
 
-	// Try to get JWT token for API authentication (only ask when we're going to write)
+	// Try to get GAISF token for API authentication (only ask when we're going to write)
 	var apiKeyHeader string
-	fmt.Print("Do you want to configure JWT token for API authentication? (y/N): ")
+	fmt.Print("Do you want to configure GAISF token for API authentication? (y/N): ")
 	reader := bufio.NewReader(os.Stdin)
 	response, _ := reader.ReadString('\n')
 	response = strings.TrimSpace(strings.ToLower(response))
@@ -726,34 +726,34 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		password = strings.TrimSpace(password)
 
 		if username != "" && password != "" {
-			logger.Info("Attempting to get JWT token", zap.String("user", username))
+			logger.Info("Attempting to get GAISF token", zap.String("user", username))
 			if token, err := getGAISFToken(username, password); err == nil {
 				apiKeyHeader = "api-key: " + token
-				logger.Info("JWT token obtained successfully.")
+				logger.Info("GAISF token obtained successfully.")
 			} else {
-				logger.Warn("Failed to get JWT token", zap.Error(err))
-				logger.Info("\n=== Manual API Key Setup ===")
-				logger.Info("Please follow these steps to manually obtain your API key:")
+				logger.Warn("Failed to get GAISF token", zap.Error(err))
+				logger.Info("\n=== Manual GAISF Token Setup ===")
+				logger.Info("Please follow these steps to manually obtain your GAISF token:")
 				logger.Info("1. Open this URL in your browser", zap.String("url", chosen+"/auth/login"))
 				logger.Info("2. Log in with your credentials")
-				logger.Info("3. Navigate to the API key management section")
-				logger.Info("4. Generate or copy your API key")
+				logger.Info("3. Navigate to the GAISF token management section")
+				logger.Info("4. Generate or copy your GAISF token")
 				logger.Info("5. Paste it below")
 
-				fmt.Print("Enter your API key (or press Enter to skip): ")
+				fmt.Print("Enter your GAISF token (or press Enter to skip): ")
 				apiKey, _ := reader.ReadString('\n')
 				apiKey = strings.TrimSpace(apiKey)
 
 				if apiKey != "" {
 					apiKeyHeader = "api-key: " + apiKey
-					logger.Info("API key configured successfully.")
+					logger.Info("GAISF token configured successfully.")
 				} else {
-					logger.Info("Skipping API key configuration...")
+					logger.Info("Skipping GAISF token configuration...")
 				}
 			}
 		}
 	} else {
-		logger.Info("Skipping JWT token configuration.")
+		logger.Info("Skipping GAISF token configuration.")
 	}
 
 	// Use the actual installed binary path
@@ -804,7 +804,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		settings.Hooks["Stop"] = []Hook{{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}}}
 	}
 
-	// Add custom headers if JWT token was obtained
+	// Add custom headers if GAISF token was obtained
 	if apiKeyHeader != "" {
 		settings.Env["ANTHROPIC_CUSTOM_HEADERS"] = apiKeyHeader
 	}
