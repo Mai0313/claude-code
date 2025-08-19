@@ -26,18 +26,24 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 
 选择对应平台的 zip（Windows、macOS Intel/Apple Silicon、或 Linux x64/ARM64）。
 
+![Release Page](images/release_page.png)
+
 ### 2) 解压
 将 zip 解压到可从终端/命令提示符访问的文件夹。
 
 ### 3) 运行安装程序
-- macOS/Linux
+- Linux
    - 在解压目录打开终端
    - 如需，先赋予可执行权限：chmod +x ./installer
    - 运行：./installer
-   - macOS：也可以双击“installer”在终端中打开
+
+- macOS
+   - 直接双击 installer
 
 - Windows
    - 双击 installer.exe，或从 PowerShell 运行
+
+![Installer Foldder](images/installer_folder.png)
 
 ### 4) 按提示操作
 - 如果未安装或版本低于 v22 的 Node.js：

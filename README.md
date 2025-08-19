@@ -26,18 +26,24 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 
 Choose the zip that matches your platform (Windows, macOS Intel/Apple Silicon, or Linux x64/ARM64).
 
+![Release Page](images/release_page.png)
+
 ### 2) Extract
 Unzip the downloaded file to a folder you can access from a terminal/command prompt.
 
 ### 3) Run the installer
-- macOS/Linux
+- Linux
    - Open Terminal in the unzipped folder
    - If needed, make it executable: chmod +x ./installer
    - Run: ./installer
-   - macOS: you can also double-click the "installer" to launch it in Terminal
+
+- macOS
+   - Double-click the installer
 
 - Windows
    - Double-click installer.exe, or run it from PowerShell
+
+![Installer Foldder](images/installer_folder.png)
 
 ### 4) Follow the prompts
 - If Node.js is missing or below v22:
