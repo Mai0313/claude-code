@@ -17,6 +17,9 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type Settings struct {
@@ -36,12 +39,36 @@ type Hook struct {
 
 type HookAction = Hook
 
+var logger *zap.Logger
+
+// initLogger initializes the zap logger with console output
+func initLogger() {
+	config := zap.NewDevelopmentConfig()
+	config.EncoderConfig.TimeKey = "timestamp"
+	config.EncoderConfig.LevelKey = "level"
+	config.EncoderConfig.MessageKey = "message"
+	config.EncoderConfig.CallerKey = zapcore.OmitKey     // Remove caller info for cleaner output
+	config.EncoderConfig.StacktraceKey = zapcore.OmitKey // Remove stacktrace for cleaner output
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
+
+	var err error
+	logger, err = config.Build()
+	if err != nil {
+		// Fallback to a basic logger if config fails
+		logger = zap.NewExample()
+	}
+}
+
 func main() {
+	initLogger()
+	defer logger.Sync()
+
 	err := run()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "installer error:", err)
+		logger.Error("Installation failed", zap.Error(err))
 	} else {
-		fmt.Println("Installation completed successfully.")
+		logger.Info("Installation completed successfully.")
 	}
 	pauseIfInteractive()
 	if err != nil {
@@ -53,17 +80,17 @@ func run() error {
 	// 1) Node.js check/install guidance
 	if !checkNodeVersion() {
 		if isCommandAvailable("node") {
-			fmt.Println("Node.js found but version is less than 22. Upgrading...")
+			logger.Info("Node.js found but version is less than 22. Upgrading...")
 		} else {
-			fmt.Println("Node.js not found. Installing...")
+			logger.Info("Node.js not found. Installing...")
 		}
 
 		switch runtime.GOOS {
 		case "windows":
 			// Per requirement: prompt user to download MSI and exit.
-			fmt.Println("Node.js not found or version < 22. Please download and install Node.js LTS from:")
-			fmt.Println("  https://nodejs.org/dist/v22.18.0/node-v22.18.0-arm64.msi")
-			fmt.Println("After installation, re-run this installer.")
+			logger.Info("Node.js not found or version < 22. Please download and install Node.js LTS from:",
+				zap.String("url", "https://nodejs.org/dist/v22.18.0/node-v22.18.0-arm64.msi"))
+			logger.Info("After installation, re-run this installer.")
 			return errors.New("node.js not installed; user action required")
 		case "darwin":
 			if err := installNodeDarwin(); err != nil {
@@ -77,12 +104,12 @@ func run() error {
 			return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 		}
 	} else {
-		fmt.Println("Node.js version >= 22 found. Skipping Node.js installation.")
+		logger.Info("Node.js version >= 22 found. Skipping Node.js installation.")
 	}
 
 	// 2) Install @anthropic-ai/claude-code with registry fallbacks
 	if checkClaudeInstalled() {
-		fmt.Println("Claude CLI already installed. Skipping installation.")
+		logger.Info("Claude CLI already installed. Skipping installation.")
 	} else {
 		err := installClaudeCLI()
 		if err != nil {
@@ -91,13 +118,13 @@ func run() error {
 	}
 
 	// 2.1) Run claude update to ensure latest version
-	fmt.Println("Updating Claude CLI to latest version...")
+	logger.Info("Updating Claude CLI to latest version...")
 	err := runCmdLogged("claude", "update")
 	if err != nil {
-		fmt.Printf("Warning: Failed to update Claude CLI: %v\n", err)
+		logger.Warn("Failed to update Claude CLI", zap.Error(err))
 		// Don't return error as this is not critical
 	} else {
-		fmt.Println("Claude CLI updated successfully.")
+		logger.Info("Claude CLI updated successfully.")
 	}
 
 	// 3) Move claude_analysis to ~/.claude with platform-specific name
@@ -397,7 +424,7 @@ func installNodeDarwin() error {
 		}
 	}
 	// Fallback: prompt user to install manually
-	fmt.Println("Unable to install Node.js automatically on macOS. Please install Node.js LTS from https://nodejs.org/ and re-run this installer.")
+	logger.Info("Unable to install Node.js automatically on macOS. Please install Node.js LTS from https://nodejs.org/ and re-run this installer.")
 	return errors.New("node.js not installed")
 }
 
@@ -433,7 +460,7 @@ func installNodeLinux() error {
 			return nil
 		}
 	}
-	fmt.Println("Unable to install Node.js automatically on Linux. Please install Node.js LTS (v22) from https://nodejs.org/ and re-run this installer.")
+	logger.Info("Unable to install Node.js automatically on Linux. Please install Node.js LTS (v22) from https://nodejs.org/ and re-run this installer.")
 	return errors.New("node.js not installed")
 }
 
@@ -502,7 +529,7 @@ func selectRegistryURL() string {
 
 	for _, host := range registryHosts {
 		if workingURL := checkConnectivity(host, 3*time.Second); workingURL != "" {
-			fmt.Printf("Found working registry: %s\n", workingURL)
+			logger.Info("Found working registry", zap.String("url", workingURL))
 			return workingURL
 		}
 	}
@@ -519,7 +546,7 @@ func selectGaisfURL() string {
 
 	for _, host := range mlopHosts {
 		if workingURL := checkConnectivity(host, 3*time.Second); workingURL != "" {
-			fmt.Printf("Found working MLOP endpoint: %s\n", workingURL)
+			logger.Info("Using MLOP gateway", zap.String("url", workingURL))
 			return workingURL
 		}
 	}
@@ -535,9 +562,9 @@ func installClaudeCLI() error {
 	args := []string{"install", "-g", "@anthropic-ai/claude-code"}
 	if registry != "" {
 		args = append(args, "--registry="+registry)
-		fmt.Printf("Installing @anthropic-ai/claude-code via registry=%s...\n", registry)
+		logger.Info("Installing @anthropic-ai/claude-code", zap.String("registry", registry))
 	} else {
-		fmt.Println("Installing @anthropic-ai/claude-code via default registry...")
+		logger.Info("Installing @anthropic-ai/claude-code via default registry...")
 	}
 
 	if err := runCmdLogged(npmPath(), args...); err != nil {
@@ -607,7 +634,7 @@ func installClaudeAnalysisBinary() (string, error) {
 	if err := copyFile(srcPath, destPath, 0o755); err != nil {
 		return "", fmt.Errorf("failed to install claude_analysis to %s: %w", destPath, err)
 	}
-	fmt.Println("Installed claude_analysis to:", destPath)
+	logger.Info("Installed claude_analysis", zap.String("path", destPath))
 	return destPath, nil
 }
 
@@ -654,19 +681,19 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		password = strings.TrimSpace(password)
 
 		if username != "" && password != "" {
-			fmt.Printf("Attempting to get JWT token for user: %s\n", username)
+			logger.Info("Attempting to get JWT token", zap.String("user", username))
 			if token, err := getGAISFToken(username, password); err == nil {
 				apiKeyHeader = "api-key: " + token
-				fmt.Println("JWT token obtained successfully.")
+				logger.Info("JWT token obtained successfully.")
 			} else {
-				fmt.Printf("Warning: Failed to get JWT token: %v\n", err)
-				fmt.Println("\n=== Manual API Key Setup ===")
-				fmt.Printf("Please follow these steps to manually obtain your API key:\n")
-				fmt.Printf("1. Open this URL in your browser: %s\n", `chosen`+"/auth/login")
-				fmt.Printf("2. Log in with your credentials\n")
-				fmt.Printf("3. Navigate to the API key management section\n")
-				fmt.Printf("4. Generate or copy your API key\n")
-				fmt.Printf("5. Paste it below\n\n")
+				logger.Warn("Failed to get JWT token", zap.Error(err))
+				logger.Info("\n=== Manual API Key Setup ===")
+				logger.Info("Please follow these steps to manually obtain your API key:")
+				logger.Info("1. Open this URL in your browser", zap.String("url", chosen+"/auth/login"))
+				logger.Info("2. Log in with your credentials")
+				logger.Info("3. Navigate to the API key management section")
+				logger.Info("4. Generate or copy your API key")
+				logger.Info("5. Paste it below")
 
 				fmt.Print("Enter your API key (or press Enter to skip): ")
 				apiKey, _ := reader.ReadString('\n')
@@ -674,14 +701,14 @@ func writeSettingsJSON(installedBinaryPath string) error {
 
 				if apiKey != "" {
 					apiKeyHeader = "api-key: " + apiKey
-					fmt.Println("API key configured successfully.")
+					logger.Info("API key configured successfully.")
 				} else {
-					fmt.Println("Skipping API key configuration...")
+					logger.Info("Skipping API key configuration...")
 				}
 			}
 		}
 	} else {
-		fmt.Println("Skipping JWT token configuration.")
+		logger.Info("Skipping JWT token configuration.")
 	}
 
 	// Use the actual installed binary path
@@ -720,7 +747,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	if existingData, err := os.ReadFile(target); err == nil {
 		var existingSettings Settings
 		if err := json.Unmarshal(existingData, &existingSettings); err == nil {
-			fmt.Println("Found existing settings, merging configurations...")
+			logger.Info("Found existing settings, merging configurations...")
 
 			// Start with existing settings
 			settings = existingSettings
@@ -757,11 +784,11 @@ func writeSettingsJSON(installedBinaryPath string) error {
 				},
 			}
 		} else {
-			fmt.Printf("Warning: Failed to parse existing settings: %v\n", err)
-			fmt.Println("Using default settings...")
+			logger.Warn("Failed to parse existing settings", zap.Error(err))
+			logger.Info("Using default settings...")
 		}
 	} else {
-		fmt.Println("No existing settings found, using default settings...")
+		logger.Info("No existing settings found, using default settings...")
 	}
 
 	// Add custom headers if JWT token was obtained
@@ -781,24 +808,34 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	if err := os.WriteFile(target, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", target, err)
 	}
-	fmt.Println("Wrote settings:", target)
+	logger.Info("Wrote settings", zap.String("path", target))
 	return nil
 }
 
 func runCmdLogged(name string, args ...string) error {
+	logger.Debug("Executing command", zap.String("command", name), zap.Strings("args", args))
 	fmt.Printf("$ %s %s\n", name, strings.Join(args, " "))
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		logger.Error("Command failed", zap.String("command", name), zap.Strings("args", args), zap.Error(err))
+	}
+	return err
 }
 
 func runShellLogged(script string) error {
+	logger.Debug("Executing shell script", zap.String("script", script))
 	fmt.Printf("$ sh -lc %q\n", script)
 	cmd := exec.Command("sh", "-lc", script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		logger.Error("Shell script failed", zap.String("script", script), zap.Error(err))
+	}
+	return err
 }
 
 func copyFile(src, dst string, mode os.FileMode) error {
