@@ -6,7 +6,7 @@
 
 本指南說明如何用隨附的安裝程式安裝 Claude Code CLI。安裝程式會：
 
-1) 檢查 Node.js（需要 v22+）。在 macOS/Linux 嘗試自動安裝；Windows 會提供下載連結並結束，請先安裝後再重跑。
+1) 檢查 Node.js（需要 v22+）。在 macOS/Linux 嘗試自動安裝；Windows 會顯示官方下載頁（https://nodejs.org/en/download/）並結束，請先安裝後再重跑。
 2) 透過 npm 全域安裝 Claude Code CLI：@anthropic-ai/claude-code。
 3) 建立 ~/.claude/settings.json，內含預設與可選擇的認證設定。
 
@@ -42,7 +42,7 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
 ### 4) 依照提示操作
 - 若未安裝或版本低於 v22 的 Node.js：
    - macOS/Linux：安裝程式會嘗試自動安裝（可能需要 sudo 密碼或使用 Homebrew/apt/dnf 等）
-   - Windows：會顯示下載連結；請先安裝 Node.js 後再重新執行安裝程式
+   - Windows：會顯示官方 Node.js 下載頁連結（https://nodejs.org/en/download/）；請先安裝 Node.js 後再重新執行安裝程式
 
 - 認證設定（建議）：
    - 出現「Do you want to configure GAISF token for API authentication? (y/N)」時選 y
@@ -71,10 +71,10 @@ https://gitea.mediatek.inc/IT-GAIA/claude-code/releases
    - 確認 npm 的 global bin 已加入 PATH
 
 - macOS/Linux 安裝 Node.js 困難
-   - 從 https://nodejs.org/ 手動安裝 v22+，再重跑安裝程式
+   - 安裝程式在 Debian/Ubuntu 可能會自動嘗試 NodeSource 22.x。若仍失敗，請從 https://nodejs.org/ 手動安裝 v22+，再重跑安裝程式
 
 - Windows 安裝 Node.js
-   - 使用安裝程式顯示的官方連結下載並安裝，完成後重跑
+   - 使用官方 Node.js 下載頁：https://nodejs.org/en/download/ 下載並安裝，完成後重跑
 
 - 認證問題
    - 檢查 MediaTek 憑證
