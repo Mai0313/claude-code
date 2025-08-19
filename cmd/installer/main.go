@@ -186,9 +186,9 @@ func checkClaudeInstalled() bool {
 	return false
 }
 
-// getJWTToken performs login to get JWT token from the MLOP gateway
+// getGAISFToken performs login to get JWT token from the MLOP gateway
 // Returns the JWT token string or error if login fails
-func getJWTToken(username, password string) (string, error) {
+func getGAISFToken(username, password string) (string, error) {
 	// Get gateway URL using selectGaisfURL
 	gatewayURL := selectGaisfURL()
 	loginURL := gatewayURL + "/auth/login"
@@ -655,7 +655,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 
 		if username != "" && password != "" {
 			fmt.Printf("Attempting to get JWT token for user: %s\n", username)
-			if token, err := getJWTToken(username, password); err == nil {
+			if token, err := getGAISFToken(username, password); err == nil {
 				apiKeyHeader = "api-key: " + token
 				fmt.Println("JWT token obtained successfully.")
 			} else {
@@ -687,6 +687,12 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	// Use the actual installed binary path
 	hookPath := installedBinaryPath
 
+	// Get target settings file path
+	homeDir, _ := os.UserHomeDir()
+	targetDir := filepath.Join(homeDir, ".claude")
+	target := filepath.Join(targetDir, "settings.json")
+
+	// Initialize with default settings
 	settings := Settings{
 		Env: map[string]string{
 			"DISABLE_TELEMETRY":                        "1",
@@ -710,6 +716,54 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		},
 	}
 
+	// Read existing settings if file exists
+	if existingData, err := os.ReadFile(target); err == nil {
+		var existingSettings Settings
+		if err := json.Unmarshal(existingData, &existingSettings); err == nil {
+			fmt.Println("Found existing settings, merging configurations...")
+
+			// Start with existing settings
+			settings = existingSettings
+
+			// Ensure Env map is initialized
+			if settings.Env == nil {
+				settings.Env = make(map[string]string)
+			}
+
+			// Update only the specific environment variables we care about
+			settings.Env["DISABLE_TELEMETRY"] = "1"
+			settings.Env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+			settings.Env["ANTHROPIC_BEDROCK_BASE_URL"] = chosen
+			settings.Env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
+			settings.Env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
+			settings.Env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+
+			// Update other settings
+			settings.IncludeCoAuthoredBy = true
+			settings.EnableAllProjectMcpServers = true
+
+			// Ensure Hooks map is initialized
+			if settings.Hooks == nil {
+				settings.Hooks = make(map[string][]Hook)
+			}
+
+			// Update the Stop hook
+			settings.Hooks["Stop"] = []Hook{
+				{
+					Matcher: "*",
+					Hooks: []Hook{
+						{Type: "command", Command: hookPath},
+					},
+				},
+			}
+		} else {
+			fmt.Printf("Warning: Failed to parse existing settings: %v\n", err)
+			fmt.Println("Using default settings...")
+		}
+	} else {
+		fmt.Println("No existing settings found, using default settings...")
+	}
+
 	// Add custom headers if JWT token was obtained
 	if apiKeyHeader != "" {
 		settings.Env["ANTHROPIC_CUSTOM_HEADERS"] = apiKeyHeader
@@ -720,13 +774,10 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		return fmt.Errorf("failed to marshal settings: %w", err)
 	}
 
-	// Write user-level settings.json
-	homeDir, _ := os.UserHomeDir()
-	targetDir := filepath.Join(homeDir, ".claude")
+	// Create target directory and write settings.json
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create %s: %w", targetDir, err)
 	}
-	target := filepath.Join(targetDir, "settings.json")
 	if err := os.WriteFile(target, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", target, err)
 	}
