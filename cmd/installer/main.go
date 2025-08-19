@@ -659,13 +659,58 @@ func exeName(base string) string {
 }
 
 func writeSettingsJSON(installedBinaryPath string) error {
+	// Determine settings path first and handle overwrite/backup prompt early
+	homeDir, _ := os.UserHomeDir()
+	targetDir := filepath.Join(homeDir, ".claude")
+	target := filepath.Join(targetDir, "settings.json")
+
+	var (
+		existingSettings    *Settings
+		shouldWriteSettings = true
+	)
+
+	if _, err := os.Stat(target); err == nil {
+		// Read existing for potential merge before renaming
+		if existingData, rerr := os.ReadFile(target); rerr == nil {
+			var es Settings
+			if jerr := json.Unmarshal(existingData, &es); jerr == nil {
+				existingSettings = &es
+			} else {
+				logger.Warn("Existing settings.json is not valid JSON; will overwrite with defaults", zap.Error(jerr))
+			}
+		}
+
+		// Prompt user for overwrite
+		fmt.Print("settings.json already exists. Overwrite it? (y/N): ")
+		reader := bufio.NewReader(os.Stdin)
+		resp, _ := reader.ReadString('\n')
+		resp = strings.TrimSpace(strings.ToLower(resp))
+		if resp != "y" && resp != "yes" {
+			logger.Info("User chose not to overwrite existing settings.json; skipping settings update.")
+			shouldWriteSettings = false
+		} else {
+			// Backup existing before overwrite
+			if err := os.MkdirAll(targetDir, 0o755); err != nil {
+				return fmt.Errorf("failed to ensure %s: %w", targetDir, err)
+			}
+			backupName := fmt.Sprintf("settings.backup_%s.json", time.Now().Format("20060102_150405"))
+			backupPath := filepath.Join(targetDir, backupName)
+			if err := os.Rename(target, backupPath); err != nil {
+				return fmt.Errorf("failed to backup existing settings.json: %w", err)
+			}
+			logger.Info("Backed up existing settings.json", zap.String("backup", backupPath))
+		}
+	}
+
+	if !shouldWriteSettings {
+		return nil
+	}
+
 	// Always use connectivity-based selection for MLOP URL
 	chosen := selectGaisfURL()
 
-	// Try to get JWT token for API authentication
-	// Ask user for credentials
+	// Try to get JWT token for API authentication (only ask when we're going to write)
 	var apiKeyHeader string
-
 	fmt.Print("Do you want to configure JWT token for API authentication? (y/N): ")
 	reader := bufio.NewReader(os.Stdin)
 	response, _ := reader.ReadString('\n')
@@ -714,11 +759,6 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	// Use the actual installed binary path
 	hookPath := installedBinaryPath
 
-	// Get target settings file path
-	homeDir, _ := os.UserHomeDir()
-	targetDir := filepath.Join(homeDir, ".claude")
-	target := filepath.Join(targetDir, "settings.json")
-
 	// Initialize with default settings
 	settings := Settings{
 		Env: map[string]string{
@@ -735,60 +775,33 @@ func writeSettingsJSON(installedBinaryPath string) error {
 			"Stop": {
 				{
 					Matcher: "*",
-					Hooks: []Hook{
-						{Type: "command", Command: hookPath},
-					},
+					Hooks:   []Hook{{Type: "command", Command: hookPath}},
 				},
 			},
 		},
 	}
 
-	// Read existing settings if file exists
-	if existingData, err := os.ReadFile(target); err == nil {
-		var existingSettings Settings
-		if err := json.Unmarshal(existingData, &existingSettings); err == nil {
-			logger.Info("Found existing settings, merging configurations...")
-
-			// Start with existing settings
-			settings = existingSettings
-
-			// Ensure Env map is initialized
-			if settings.Env == nil {
-				settings.Env = make(map[string]string)
-			}
-
-			// Update only the specific environment variables we care about
-			settings.Env["DISABLE_TELEMETRY"] = "1"
-			settings.Env["CLAUDE_CODE_USE_BEDROCK"] = "1"
-			settings.Env["ANTHROPIC_BEDROCK_BASE_URL"] = chosen
-			settings.Env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
-			settings.Env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
-			settings.Env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
-
-			// Update other settings
-			settings.IncludeCoAuthoredBy = true
-			settings.EnableAllProjectMcpServers = true
-
-			// Ensure Hooks map is initialized
-			if settings.Hooks == nil {
-				settings.Hooks = make(map[string][]Hook)
-			}
-
-			// Update the Stop hook
-			settings.Hooks["Stop"] = []Hook{
-				{
-					Matcher: "*",
-					Hooks: []Hook{
-						{Type: "command", Command: hookPath},
-					},
-				},
-			}
-		} else {
-			logger.Warn("Failed to parse existing settings", zap.Error(err))
-			logger.Info("Using default settings...")
+	// If we had valid existing settings, start from them and merge updates
+	if existingSettings != nil {
+		logger.Info("Found existing settings, merging configurations before overwrite...")
+		settings = *existingSettings
+		if settings.Env == nil {
+			settings.Env = make(map[string]string)
 		}
-	} else {
-		logger.Info("No existing settings found, using default settings...")
+		settings.Env["DISABLE_TELEMETRY"] = "1"
+		settings.Env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+		settings.Env["ANTHROPIC_BEDROCK_BASE_URL"] = chosen
+		settings.Env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
+		settings.Env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
+		settings.Env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+
+		settings.IncludeCoAuthoredBy = true
+		settings.EnableAllProjectMcpServers = true
+
+		if settings.Hooks == nil {
+			settings.Hooks = make(map[string][]Hook)
+		}
+		settings.Hooks["Stop"] = []Hook{{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}}}
 	}
 
 	// Add custom headers if JWT token was obtained
