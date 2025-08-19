@@ -153,9 +153,15 @@ func run() error {
 
 	// 2.1) Run claude update to ensure latest version
 	logger.Info("Updating Claude CLI to latest version...")
-	err := runCmdLogged("claude", "update")
-	if err != nil {
-		logger.Warn("Failed to update Claude CLI", zap.Error(err))
+	// Prefer an explicit path to the claude binary if available
+	var updateErr error
+	if path, ok := findClaudeBinary(); ok {
+		updateErr = runCmdLogged(path, "update")
+	} else {
+		updateErr = runCmdLogged("claude", "update")
+	}
+	if updateErr != nil {
+		logger.Warn("Failed to update Claude CLI", zap.Error(updateErr))
 		// Don't return error as this is not critical
 	} else {
 		logger.Info("Claude CLI updated successfully.")
@@ -227,22 +233,9 @@ func checkNodeVersion() bool {
 
 // checkClaudeInstalled returns true if Claude CLI is already installed and working
 func checkClaudeInstalled() bool {
-	// Try running "claude --version"; if successful, it's installed
-	if err := exec.Command("claude", "--version").Run(); err == nil {
-		return true
-	}
-
-	// Try from npm bin -g location
-	out, err := exec.Command(npmPath(), "bin", "-g").Output()
-	if err != nil {
-		return false
-	}
-	binDir := strings.TrimSpace(string(out))
-	claudePath := filepath.Join(binDir, exeName("claude"))
-	if _, err := os.Stat(claudePath); err == nil {
-		if err := exec.Command(claudePath, "--version").Run(); err == nil {
-			return true
-		}
+	if path, ok := findClaudeBinary(); ok {
+		// Confirm it actually runs
+		return exec.Command(path, "--version").Run() == nil
 	}
 	return false
 }
@@ -482,22 +475,36 @@ func checkURLReachability(url string, timeout time.Duration) error {
 		Timeout: timeout,
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: false, // Keep certificate verification enabled
-			},
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: false},
 		},
 	}
 
-	resp, err := client.Head(url)
+	// Try HEAD first
+	if resp, err := client.Head(url); err == nil {
+		resp.Body.Close()
+		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+			return nil
+		}
+		// Some servers may not support HEAD properly; fall back to GET below
+		if resp.StatusCode == http.StatusMethodNotAllowed || resp.StatusCode == http.StatusNotImplemented {
+			// continue to GET
+		} else {
+			return fmt.Errorf("HTTP status: %d", resp.StatusCode)
+		}
+	}
+
+	// Fallback: light GET request
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("User-Agent", "claude-installer/1.0")
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 512))
 	resp.Body.Close()
-
 	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
 		return nil
 	}
-
 	return fmt.Errorf("HTTP status: %d", resp.StatusCode)
 }
 
@@ -594,22 +601,8 @@ func installClaudeCLI() error {
 }
 
 func verifyClaudeInstalled() error {
-	// Try running "claude --version"; if not in PATH, attempt using npm bin -g
-	if err := runCmdLogged("claude", "--version"); err == nil {
-		return nil
-	}
-	// Try from npm bin -g
-	out, err := exec.Command(npmPath(), "bin", "-g").Output()
-	if err != nil {
-		return fmt.Errorf("npm bin -g failed: %w", err)
-	}
-	binDir := strings.TrimSpace(string(out))
-	claudePath := filepath.Join(binDir, exeName("claude"))
-	if _, err := os.Stat(claudePath); err == nil {
-		cmd := exec.Command(claudePath, "--version")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
+	if path, ok := findClaudeBinary(); ok {
+		return runCmdLogged(path, "--version")
 	}
 	return errors.New("claude CLI not found after installation")
 }
@@ -694,12 +687,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 			}
 		}
 
-		// Prompt user for overwrite
-		fmt.Print("settings.json already exists. Overwrite it? (y/N): ")
-		reader := bufio.NewReader(os.Stdin)
-		resp, _ := reader.ReadString('\n')
-		resp = strings.TrimSpace(strings.ToLower(resp))
-		if resp != "y" && resp != "yes" {
+		if !askYesNo("settings.json already exists. Overwrite it? (y/N): ", false) {
 			logger.Info("User chose not to overwrite existing settings.json; skipping settings update.")
 			shouldWriteSettings = false
 		} else {
@@ -725,17 +713,11 @@ func writeSettingsJSON(installedBinaryPath string) error {
 
 	// Try to get GAISF token for API authentication (only ask when we're going to write)
 	var apiKeyHeader string
-	fmt.Print("Do you want to configure GAISF token for API authentication? (y/N): ")
-	reader := bufio.NewReader(os.Stdin)
-	response, _ := reader.ReadString('\n')
-	response = strings.TrimSpace(strings.ToLower(response))
-
-	if response == "y" || response == "yes" {
-		// Console-based login flow
+	if askYesNo("Do you want to configure GAISF token for API authentication? (y/N): ", false) {
+		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter username: ")
 		username, _ := reader.ReadString('\n')
 		username = strings.TrimSpace(username)
-
 		fmt.Print("Enter password: ")
 		password, _ := reader.ReadString('\n')
 		password = strings.TrimSpace(password)
@@ -747,14 +729,9 @@ func writeSettingsJSON(installedBinaryPath string) error {
 				logger.Info("GAISF token obtained successfully.")
 			} else {
 				logger.Warn("Failed to get GAISF token", zap.Error(err))
-				logger.Info("\n=== Manual GAISF Token Setup ===")
-				logger.Info("Please follow these steps to manually obtain your GAISF token:")
-				logger.Info("1. Open this URL in your browser", zap.String("url", chosen+"/auth/login"))
-				logger.Info("2. Log in with your credentials")
-				logger.Info("3. Navigate to the GAISF token management section")
-				logger.Info("4. Generate or copy your GAISF token")
-				logger.Info("5. Paste it below")
-
+				logger.Info("=== Manual GAISF Token Setup ===")
+				logger.Info("Follow steps in your browser to get your GAISF token then paste it below.")
+				logger.Info("Login URL:", zap.String("url", chosen+"/auth/login"))
 				fmt.Print("Enter your GAISF token (or press Enter to skip): ")
 				apiKey, _ := reader.ReadString('\n')
 				apiKey = strings.TrimSpace(apiKey)
@@ -775,25 +752,16 @@ func writeSettingsJSON(installedBinaryPath string) error {
 
 	// Initialize with default settings
 	settings := Settings{
-		Env: map[string]string{
-			"DISABLE_TELEMETRY":                        "1",
-			"CLAUDE_CODE_USE_BEDROCK":                  "1",
-			"ANTHROPIC_BEDROCK_BASE_URL":               chosen,
-			"CLAUDE_CODE_ENABLE_TELEMETRY":             "1",
-			"CLAUDE_CODE_SKIP_BEDROCK_AUTH":            "1",
-			"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		},
+		Env:                        map[string]string{},
 		IncludeCoAuthoredBy:        true,
 		EnableAllProjectMcpServers: true,
 		Hooks: map[string][]Hook{
 			"Stop": {
-				{
-					Matcher: "*",
-					Hooks:   []Hook{{Type: "command", Command: hookPath}},
-				},
+				{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}},
 			},
 		},
 	}
+	applyDefaultEnv(settings.Env, chosen, "")
 
 	// If we had valid existing settings, start from them and merge updates
 	if existingSettings != nil {
@@ -802,16 +770,9 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		if settings.Env == nil {
 			settings.Env = make(map[string]string)
 		}
-		settings.Env["DISABLE_TELEMETRY"] = "1"
-		settings.Env["CLAUDE_CODE_USE_BEDROCK"] = "1"
-		settings.Env["ANTHROPIC_BEDROCK_BASE_URL"] = chosen
-		settings.Env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
-		settings.Env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
-		settings.Env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
-
+		applyDefaultEnv(settings.Env, chosen, "")
 		settings.IncludeCoAuthoredBy = true
 		settings.EnableAllProjectMcpServers = true
-
 		if settings.Hooks == nil {
 			settings.Hooks = make(map[string][]Hook)
 		}
@@ -880,4 +841,46 @@ func copyFile(src, dst string, mode os.FileMode) error {
 		return err
 	}
 	return nil
+}
+
+// findClaudeBinary attempts to locate the claude CLI either on PATH or in npm's global bin directory.
+func findClaudeBinary() (string, bool) {
+	if p, err := exec.LookPath("claude"); err == nil {
+		return p, true
+	}
+	out, err := exec.Command(npmPath(), "bin", "-g").Output()
+	if err != nil {
+		return "", false
+	}
+	binDir := strings.TrimSpace(string(out))
+	p := filepath.Join(binDir, exeName("claude"))
+	if _, err := os.Stat(p); err == nil {
+		return p, true
+	}
+	return "", false
+}
+
+// askYesNo prompts the user and returns true for yes/false for no. Defaults apply when input is empty.
+func askYesNo(prompt string, defaultYes bool) bool {
+	fmt.Print(prompt)
+	r := bufio.NewReader(os.Stdin)
+	resp, _ := r.ReadString('\n')
+	resp = strings.TrimSpace(strings.ToLower(resp))
+	if resp == "" {
+		return defaultYes
+	}
+	return resp == "y" || resp == "yes"
+}
+
+// applyDefaultEnv sets/overwrites the expected env defaults used by settings.json
+func applyDefaultEnv(env map[string]string, baseURL string, customHeader string) {
+	env["DISABLE_TELEMETRY"] = "1"
+	env["CLAUDE_CODE_USE_BEDROCK"] = "1"
+	env["ANTHROPIC_BEDROCK_BASE_URL"] = baseURL
+	env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
+	env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
+	env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+	if customHeader != "" {
+		env["ANTHROPIC_CUSTOM_HEADERS"] = customHeader
+	}
 }
