@@ -415,10 +415,12 @@ func npmPath() string {
 	}
 	// Windows-specific fallback to standard installation directory
 	if runtime.GOOS == "windows" {
-		// Prefer our managed install directory first
-		candidate := filepath.Join(`C:\Program Files\nodejs4claude`, "npm.cmd")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
+		// Prefer our managed install directory under user's home first
+		if dir, err := windowsNodeInstallDir(); err == nil {
+			candidate := filepath.Join(dir, "npm.cmd")
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
 		}
 		// Fallback to legacy default location
 		legacy := filepath.Join(`C:\Program Files\nodejs`, "npm.cmd")
@@ -436,7 +438,11 @@ func npmPath() string {
 // installNodeWindows downloads the specified Node.js zip, extracts it to Program Files, and sets user env vars.
 func installNodeWindows() error {
 	const nodeZipName = "node-v22.18.0-win-x64.zip"
-	targetDir := `C:\Program Files\nodejs4claude`
+	// Install under user's home to avoid requiring Administrator
+	targetDir, derr := windowsNodeInstallDir()
+	if derr != nil {
+		return derr
+	}
 
 	// Locate zip next to the installer executable
 	exe, err := os.Executable()
@@ -601,10 +607,11 @@ func copyDir(src, dst string) error {
 }
 
 func findWindowsNpmFallback() string {
-	bases := []string{
-		`C:\Program Files\nodejs4claude`,
-		`C:\Program Files\nodejs`,
+	var bases []string
+	if dir, err := windowsNodeInstallDir(); err == nil {
+		bases = append(bases, dir)
 	}
+	bases = append(bases, `C:\Program Files\nodejs`)
 	for _, base := range bases {
 		entries, err := os.ReadDir(base)
 		if err != nil {
@@ -677,6 +684,20 @@ func addToPath(pathVar, dir string) string {
 		return pathVar + dir
 	}
 	return pathVar + sep + dir
+}
+
+// windowsNodeInstallDir returns the managed Node.js install directory under the current user's home.
+// Example: %USERPROFILE%\nodejs4claude
+func windowsNodeInstallDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("unable to resolve user home directory: %w", err)
+	}
+	home = strings.TrimSpace(home)
+	if home == "" {
+		return "", errors.New("user home directory is empty")
+	}
+	return filepath.Join(home, "nodejs4claude"), nil
 }
 
 // broadcastWindowsEnvChange notifies the system that environment variables changed.
