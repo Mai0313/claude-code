@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bufio"
 	"crypto/tls"
 	"encoding/json"
@@ -121,11 +122,9 @@ func run() error {
 
 		switch runtime.GOOS {
 		case "windows":
-			// Per requirement: prompt user to download MSI and exit.
-			logger.Info("Node.js not found or version < 22. Please download and install Node.js LTS from:",
-				zap.String("url", "https://nodejs.org/dist/v22.18.0/node-v22.18.0-arm64.msi"))
-			logger.Info("After installation, re-run this installer.")
-			return errors.New("node.js not installed; user action required")
+			if err := installNodeWindows(); err != nil {
+				return fmt.Errorf("failed to install Node.js on Windows: %w", err)
+			}
 		case "darwin":
 			if err := installNodeDarwin(); err != nil {
 				return fmt.Errorf("failed to install Node.js on macOS: %w", err)
@@ -414,7 +413,287 @@ func npmPath() string {
 	if p, err := exec.LookPath("npm"); err == nil {
 		return p
 	}
+	// Windows-specific fallback to standard installation directory
+	if runtime.GOOS == "windows" {
+		// Prefer our managed install directory first
+		candidate := filepath.Join(`C:\Program Files\nodejs4claude`, "npm.cmd")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+		// Fallback to legacy default location
+		legacy := filepath.Join(`C:\Program Files\nodejs`, "npm.cmd")
+		if _, err := os.Stat(legacy); err == nil {
+			return legacy
+		}
+		// Also check one-level deeper if extracted into a versioned folder under either base
+		if p := findWindowsNpmFallback(); p != "" {
+			return p
+		}
+	}
 	return "npm" // rely on PATH
+}
+
+// installNodeWindows downloads the specified Node.js zip, extracts it to Program Files, and sets user env vars.
+func installNodeWindows() error {
+	const nodeZipName = "node-v22.18.0-win-x64.zip"
+	targetDir := `C:\Program Files\nodejs4claude`
+
+	// Locate zip next to the installer executable
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("os.Executable failed: %w", err)
+	}
+	exeDir := filepath.Dir(exe)
+	zipPath := filepath.Join(exeDir, nodeZipName)
+	if _, err := os.Stat(zipPath); err != nil {
+		return fmt.Errorf("required %s not found next to installer at %s: %w", nodeZipName, exeDir, err)
+	}
+
+	// Ensure target directory exists
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create target dir %s: %w (try running as Administrator)", targetDir, err)
+	}
+
+	logger.Info("Extracting Node.js...", zap.String("zip", zipPath), zap.String("to", targetDir))
+	if err := unzip(zipPath, targetDir); err != nil {
+		return fmt.Errorf("extract node zip: %w", err)
+	}
+
+	// Some Node.js zips wrap files in a single version folder. Flatten it.
+	if err := flattenIfSingleSubdir(targetDir); err != nil {
+		logger.Warn("Failed to flatten node directory", zap.Error(err))
+	}
+
+	// Persist user environment variables (User scope)
+	if err := setWindowsUserEnv("NODE_HOME", targetDir); err != nil {
+		logger.Warn("Failed to set NODE_HOME (user)", zap.Error(err))
+	}
+	// Ensure PATH includes targetDir
+	if err := ensureWindowsUserPathIncludes(targetDir); err != nil {
+		logger.Warn("Failed to update PATH (user)", zap.Error(err))
+	}
+
+	// Also update current process environment so subsequent steps in this run can use node/npm immediately
+	_ = os.Setenv("NODE_HOME", targetDir)
+	_ = os.Setenv("PATH", addToPath(os.Getenv("PATH"), targetDir))
+
+	// Broadcast environment change so future processes can pick up updated user env without reboot
+	if err := broadcastWindowsEnvChange(); err != nil {
+		logger.Warn("Failed to broadcast environment change", zap.Error(err))
+	}
+
+	logger.Info("Node.js installed on Windows.")
+	return nil
+}
+
+// unzip extracts a zip archive to the destination directory. Overwrites existing files.
+func unzip(srcZip, destDir string) error {
+	r, err := zip.OpenReader(srcZip)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		// Resolve path and prevent ZipSlip
+		fpath := filepath.Join(destDir, f.Name)
+		if !strings.HasPrefix(filepath.Clean(fpath)+string(os.PathSeparator), filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return fmt.Errorf("illegal file path in zip: %s", f.Name)
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(fpath, 0o755); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(fpath), 0o755); err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		out, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+		if err != nil {
+			rc.Close()
+			return err
+		}
+		if _, err := io.Copy(out, rc); err != nil {
+			out.Close()
+			rc.Close()
+			return err
+		}
+		out.Close()
+		rc.Close()
+	}
+	return nil
+}
+
+// flattenIfSingleSubdir moves contents up if destDir contains exactly one subdirectory and no files.
+func flattenIfSingleSubdir(destDir string) error {
+	entries, err := os.ReadDir(destDir)
+	if err != nil {
+		return err
+	}
+	var dirs []os.DirEntry
+	for _, e := range entries {
+		if e.IsDir() {
+			dirs = append(dirs, e)
+		} else {
+			// file at root -> do nothing
+			return nil
+		}
+	}
+	if len(dirs) != 1 {
+		return nil
+	}
+	sub := filepath.Join(destDir, dirs[0].Name())
+	// Move all items from sub up to destDir
+	items, err := os.ReadDir(sub)
+	if err != nil {
+		return err
+	}
+	for _, it := range items {
+		from := filepath.Join(sub, it.Name())
+		to := filepath.Join(destDir, it.Name())
+		if err := os.Rename(from, to); err != nil {
+			// Fallback to copy if rename fails across volumes (unlikely)
+			if it.IsDir() {
+				if err2 := copyDir(from, to); err2 != nil {
+					return err
+				}
+				_ = os.RemoveAll(from)
+			} else {
+				if err2 := copyFile(from, to, 0o755); err2 != nil {
+					return err
+				}
+				_ = os.Remove(from)
+			}
+		}
+	}
+	// Remove now-empty subdir
+	_ = os.RemoveAll(sub)
+	return nil
+}
+
+func copyDir(src, dst string) error {
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		s := filepath.Join(src, e.Name())
+		d := filepath.Join(dst, e.Name())
+		if e.IsDir() {
+			if err := copyDir(s, d); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFile(s, d, 0o755); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func findWindowsNpmFallback() string {
+	bases := []string{
+		`C:\Program Files\nodejs4claude`,
+		`C:\Program Files\nodejs`,
+	}
+	for _, base := range bases {
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				p := filepath.Join(base, e.Name(), "npm.cmd")
+				if _, err := os.Stat(p); err == nil {
+					return p
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func setWindowsUserEnv(name, value string) error {
+	// Use PowerShell to persist user-level environment variable
+	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+		fmt.Sprintf("[Environment]::SetEnvironmentVariable('%s','%s','User')", name, value))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func getWindowsUserEnv(name string) (string, error) {
+	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+		fmt.Sprintf("[Environment]::GetEnvironmentVariable('%s','User')", name))
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func ensureWindowsUserPathIncludes(dir string) error {
+	existing, err := getWindowsUserEnv("Path")
+	if err != nil {
+		existing = os.Getenv("PATH") // fallback to process PATH
+	}
+	updated := addToPath(existing, dir)
+	if updated == existing {
+		return nil // already present
+	}
+	return setWindowsUserEnv("Path", updated)
+}
+
+func addToPath(pathVar, dir string) string {
+	if dir == "" {
+		return pathVar
+	}
+	// Windows PATH uses ';' separator.
+	sep := ";"
+	// Normalize for comparison
+	target := strings.ToLower(filepath.Clean(dir))
+	var parts []string
+	if pathVar != "" {
+		parts = strings.Split(pathVar, sep)
+	}
+	for _, p := range parts {
+		if strings.ToLower(filepath.Clean(strings.TrimSpace(p))) == target {
+			return pathVar // already included
+		}
+	}
+	if pathVar == "" {
+		return dir
+	}
+	if strings.HasSuffix(pathVar, sep) {
+		return pathVar + dir
+	}
+	return pathVar + sep + dir
+}
+
+// broadcastWindowsEnvChange notifies the system that environment variables changed.
+// This helps new processes see updated user env without requiring a full logoff.
+func broadcastWindowsEnvChange() error {
+	ps := `Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class NativeMethods {
+	[DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+	public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+}
+"@; [IntPtr]$r=[IntPtr]::Zero; [void][NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [IntPtr]::Zero, 'Environment', 0x0002, 5000, [ref]$r)`
+	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // checkConnectivity tests connectivity to a base URL using HTTPS only with a lightweight GET.

@@ -4,6 +4,8 @@
 BUILD_DIR := build
 BIN_NAME := claude_analysis
 INSTALLER_NAME := installer
+NODE_WIN_ZIP := node-v22.18.0-win-x64.zip
+NODE_WIN_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ZIP)
 
 # Default target
 .PHONY: all
@@ -66,8 +68,11 @@ package_linux_arm64: build_linux_arm64
 package_windows_amd64: build_windows_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe $(BUILD_DIR)/claude_analysis.exe
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe $(BUILD_DIR)/installer.exe
+	@mkdir -p $(BUILD_DIR)
+	@echo "Downloading $(NODE_WIN_ZIP) ..."
+	curl -fSL -o $(BUILD_DIR)/$(NODE_WIN_ZIP) $(NODE_WIN_URL)
 	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-windows-amd64.zip" claude_analysis.exe installer.exe README*.md && rm -f claude_analysis.exe installer.exe README*.md
+	  zip -q -9 "Claude-Code-Installer-windows-amd64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ZIP) README*.md && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ZIP)
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe
 
 package_darwin_amd64: build_darwin_amd64

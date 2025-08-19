@@ -77,8 +77,8 @@ jobs:
       - name: Install New Version
         if: steps.check_tag.outputs.tag_exists == 'false'
         env:
-          http_proxy: ${{ secrets.HTTP_PROXY }}
-          https_proxy: ${{ secrets.HTTPS_PROXY }}
+          http_proxy: http://mtkdrone01.mediatek.inc:23984
+          https_proxy: http://mtkdrone01.mediatek.inc:23984
         run: |
           chmod +x ./scripts/install_binaries.sh
           ./scripts/install_binaries.sh

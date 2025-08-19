@@ -10,6 +10,8 @@ permissions: write-all
 env:
   NODE_TLS_REJECT_UNAUTHORIZED: 0
   GOPROXY: http://oa-mirror.mediatek.inc/repository/golang
+  http_proxy: http://mtkdrone01.mediatek.inc:23984
+  https_proxy: http://mtkdrone01.mediatek.inc:23984
 
 jobs:
   build_package:
