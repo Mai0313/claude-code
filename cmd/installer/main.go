@@ -12,6 +12,7 @@ import (
 
 	"claude_analysis/cmd/installer/internal/config"
 	"claude_analysis/cmd/installer/internal/install"
+	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/ui"
 )
 
@@ -115,6 +116,11 @@ func main() {
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	// Set up global logger for status updates
+	messenger := ui.NewStatusMessenger(p)
+	logger.GlobalLogger = messenger
+
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("❌ Error running program: %v", err)
 		os.Exit(1)

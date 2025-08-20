@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/platform"
 )
 
@@ -43,6 +44,6 @@ func InstallClaudeAnalysisBinary() error {
 	if err := platform.CopyFile(srcPath, destPath, 0o755); err != nil {
 		return fmt.Errorf("failed to install claude_analysis to %s: %w", destPath, err)
 	}
-	fmt.Printf("✅ Installed claude_analysis to: %s\n", destPath)
+	logger.Success("✅ Claude Analysis binary installed successfully", fmt.Sprintf("Location: %s", destPath))
 	return nil
 }

@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"runtime"
 
+	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/platform"
 )
 
 // InstallNodeJS checks for Node.js and installs if necessary
 func InstallNodeJS() error {
-	fmt.Println("📦 Step 1: Checking Node.js...")
+	logger.Progress("📦 Step 1: Checking Node.js...")
 	if !platform.CheckNodeVersion() {
 		if platform.IsCommandAvailable("node") {
-			fmt.Println("⚡ Node.js found but version is less than 22. Upgrading...")
+			logger.Warning("⚡ Node.js found but version is less than 22. Upgrading...")
 		} else {
-			fmt.Println("📦 Node.js not found. Installing...")
+			logger.Info("📦 Node.js not found. Installing...")
 		}
 
 		switch runtime.GOOS {
@@ -36,7 +37,7 @@ func InstallNodeJS() error {
 		}
 	}
 
-	fmt.Println("✅ Node.js version >= 22 found. Skipping Node.js installation.")
+	logger.Success("✅ Node.js version >= 22 found. Skipping Node.js installation.")
 	return nil
 }
 
@@ -53,7 +54,7 @@ func installNodeDarwin() error {
 		}
 	}
 	// Fallback: prompt user to install manually
-	fmt.Println("❌ Unable to install Node.js automatically on macOS. Please install Node.js LTS from https://nodejs.org/ and re-run this installer.")
+	logger.Error("❌ Unable to install Node.js automatically on macOS", "Please install Node.js LTS from https://nodejs.org/ and re-run this installer.")
 	return errors.New("node.js not installed")
 }
 
@@ -89,6 +90,6 @@ func installNodeLinux() error {
 			return nil
 		}
 	}
-	fmt.Println("❌ Unable to install Node.js automatically on Linux. Please install Node.js LTS (v22) from https://nodejs.org/ and re-run this installer.")
+	logger.Error("❌ Unable to install Node.js automatically on Linux", "Please install Node.js LTS (v22) from https://nodejs.org/ and re-run this installer.")
 	return errors.New("node.js not installed")
 }

@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"claude_analysis/cmd/installer/internal/logger"
 )
 
 // Platform utilities
@@ -45,14 +47,18 @@ func RunLoggedCmd(name string, args ...string) error {
 	// Capture output instead of direct piping to avoid TUI interference
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("❌ Error: Command failed: %s %v - %v\n", name, args, err)
+		logger.Error("❌ Command failed", fmt.Sprintf("Command: %s %v\nError: %v", name, args, err))
 		if len(output) > 0 {
 			// Only show output if there's an error and we have output to show
 			lines := strings.Split(string(output), "\n")
+			var outputLines []string
 			for _, line := range lines {
 				if strings.TrimSpace(line) != "" {
-					fmt.Printf("   %s\n", line)
+					outputLines = append(outputLines, "   "+line)
 				}
+			}
+			if len(outputLines) > 0 {
+				logger.Error("Command output:", strings.Join(outputLines, "\n"))
 			}
 		}
 	}
@@ -67,14 +73,18 @@ func RunLoggedShell(script string) error {
 	// Capture output instead of direct piping to avoid TUI interference
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("❌ Error: Shell script failed: %s - %v\n", script, err)
+		logger.Error("❌ Shell script failed", fmt.Sprintf("Script: %s\nError: %v", script, err))
 		if len(output) > 0 {
 			// Only show output if there's an error and we have output to show
 			lines := strings.Split(string(output), "\n")
+			var outputLines []string
 			for _, line := range lines {
 				if strings.TrimSpace(line) != "" {
-					fmt.Printf("   %s\n", line)
+					outputLines = append(outputLines, "   "+line)
 				}
+			}
+			if len(outputLines) > 0 {
+				logger.Error("Script output:", strings.Join(outputLines, "\n"))
 			}
 		}
 	}

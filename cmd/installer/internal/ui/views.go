@@ -206,10 +206,31 @@ func (m Model) updateOperation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Quitting = true
 			return m, tea.Quit
 
+		case "d":
+			// Toggle details view
+			m.ShowDetails = !m.ShowDetails
+			return m, nil
+
 		case "enter", "esc":
 			m.CurrentView = MainMenuView
+			// Clear status messages when returning to main menu
+			m.StatusMessages = []StatusMsg{}
+			m.CurrentProgress = nil
 			return m, nil
 		}
+
+	case StatusMsg:
+		// Add new status message
+		m.StatusMessages = append(m.StatusMessages, msg)
+		// Keep only the last 10 messages to avoid overflow
+		if len(m.StatusMessages) > 10 {
+			m.StatusMessages = m.StatusMessages[len(m.StatusMessages)-10:]
+		}
+		return m, nil
+
+	case ProgressMsg:
+		m.CurrentProgress = &msg
+		return m, nil
 
 	case OperationResult:
 		m.Result = msg.Message
@@ -276,22 +297,68 @@ func (m Model) View() string {
 		)
 
 	case OperationView:
-		statusMsg := m.Operation
-		if m.Result != "" {
-			if m.IsError {
-				statusMsg += "\n\n" + ErrorStyle.Render(m.Result)
-			} else {
-				statusMsg += "\n\n" + SuccessStyle.Render(m.Result)
+		var statusContent strings.Builder
+
+		// Show operation title
+		statusContent.WriteString(HeaderStyle.Render("🔄 Operation in Progress"))
+		statusContent.WriteString("\n\n")
+
+		// Show current operation
+		statusContent.WriteString(PromptStyle.Render(m.Operation))
+		statusContent.WriteString("\n\n")
+
+		// Show progress if available
+		if m.CurrentProgress != nil {
+			progressBar := renderProgressBar(m.CurrentProgress.Percentage, 40)
+			statusContent.WriteString(ProgressStyle.Render(fmt.Sprintf("Progress: %.1f%% (%d/%d)",
+				m.CurrentProgress.Percentage, m.CurrentProgress.Step, m.CurrentProgress.TotalSteps)))
+			statusContent.WriteString("\n")
+			statusContent.WriteString(progressBar)
+			statusContent.WriteString("\n")
+			if m.CurrentProgress.CurrentTask != "" {
+				statusContent.WriteString(InfoStyle.Render("📋 " + m.CurrentProgress.CurrentTask))
+				statusContent.WriteString("\n\n")
 			}
-			statusMsg += "\n\nPress Enter to return to main menu..."
-		} else {
-			statusMsg += fmt.Sprintf("\n\n%s Processing...", m.Spinner.View())
 		}
-		return fmt.Sprintf(
-			"\n%s\n\n%s\n",
-			HeaderStyle.Render("🔄 Operation in Progress"),
-			statusMsg,
-		)
+
+		// Show status messages
+		if len(m.StatusMessages) > 0 {
+			statusContent.WriteString(PromptStyle.Render("Status Updates:"))
+			statusContent.WriteString("\n")
+
+			// Show recent messages (last 5 if not showing details, all if showing details)
+			start := 0
+			if !m.ShowDetails && len(m.StatusMessages) > 5 {
+				start = len(m.StatusMessages) - 5
+			}
+
+			for i := start; i < len(m.StatusMessages); i++ {
+				msg := m.StatusMessages[i]
+				statusContent.WriteString(renderStatusMessage(msg))
+				statusContent.WriteString("\n")
+			}
+		}
+
+		// Show final result if available
+		if m.Result != "" {
+			statusContent.WriteString("\n")
+			if m.IsError {
+				statusContent.WriteString(ErrorStyle.Render(m.Result))
+			} else {
+				statusContent.WriteString(SuccessStyle.Render(m.Result))
+			}
+			statusContent.WriteString("\n\n")
+			statusContent.WriteString("Press Enter to return to main menu...")
+		} else {
+			statusContent.WriteString(fmt.Sprintf("\n%s Processing...", m.Spinner.View()))
+		}
+
+		// Add help text
+		if len(m.StatusMessages) > 5 && !m.ShowDetails {
+			statusContent.WriteString("\n\nPress 'd' to toggle details view")
+		}
+
+		return StatusBoxStyle.Render(statusContent.String())
 
 	default:
 		return ""
@@ -535,4 +602,82 @@ func (m *GAISFConfigModel) View() string {
 	}
 
 	return content.String()
+}
+
+// Helper functions for enhanced UI display
+
+// renderProgressBar creates a visual progress bar
+func renderProgressBar(percentage float64, width int) string {
+	if percentage < 0 {
+		percentage = 0
+	}
+	if percentage > 100 {
+		percentage = 100
+	}
+
+	filled := int((percentage / 100.0) * float64(width))
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+
+	return ProgressBarStyle.Render(fmt.Sprintf("[%s] %.1f%%", bar, percentage))
+}
+
+// renderStatusMessage formats a status message with appropriate styling
+func renderStatusMessage(msg StatusMsg) string {
+	var icon string
+	var styledMsg string
+
+	switch msg.Type {
+	case StatusInfo:
+		icon = "ℹ️"
+		styledMsg = InfoStyle.Render(msg.Message)
+	case StatusSuccess:
+		icon = "✅"
+		styledMsg = SuccessStyle.Render(msg.Message)
+	case StatusWarning:
+		icon = "⚠️"
+		styledMsg = WarningStyle.Render(msg.Message)
+	case StatusError:
+		icon = "❌"
+		styledMsg = ErrorStyle.Render(msg.Message)
+	case StatusProgress:
+		icon = "🔄"
+		styledMsg = ProgressStyle.Render(msg.Message)
+	default:
+		icon = "•"
+		styledMsg = InfoStyle.Render(msg.Message)
+	}
+
+	result := fmt.Sprintf("%s %s", icon, styledMsg)
+	if msg.Details != "" {
+		result += "\n" + DetailsStyle.Render("    "+msg.Details)
+	}
+
+	return result
+}
+
+// NewStatusMsg creates a new status message
+func NewStatusMsg(msgType StatusType, message string, details ...string) StatusMsg {
+	msg := StatusMsg{
+		Type:    msgType,
+		Message: message,
+	}
+	if len(details) > 0 {
+		msg.Details = details[0]
+	}
+	return msg
+}
+
+// NewProgressMsg creates a new progress message
+func NewProgressMsg(step, totalSteps int, currentTask string) ProgressMsg {
+	percentage := 0.0
+	if totalSteps > 0 {
+		percentage = (float64(step) / float64(totalSteps)) * 100.0
+	}
+
+	return ProgressMsg{
+		Step:        step,
+		TotalSteps:  totalSteps,
+		CurrentTask: currentTask,
+		Percentage:  percentage,
+	}
 }

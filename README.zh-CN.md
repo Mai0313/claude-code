@@ -88,6 +88,8 @@ chmod +x ./installer  # 给予执行权限（如需要）
 
 ![安装程序主菜单](images/installer_menu1.png)
 
+![下載中](images/installing.png)
+
 > ⏳ **请耐心等候**：此步骤包含 Node.js v22 和 Claude Code CLI 的下载与安装，可能需要几分钟时间。
 
 完成后你会看到这个画面引导你进行下一步

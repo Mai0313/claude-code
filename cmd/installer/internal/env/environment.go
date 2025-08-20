@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"claude_analysis/cmd/installer/internal/logger"
 )
 
 // EnvironmentConfig represents a domain environment and its associated endpoints
@@ -116,7 +118,8 @@ func SelectAvailableURL() *Environment {
 			MLOPBaseURL: "https://" + strings.TrimSuffix(strings.TrimPrefix(mlopHost, "https://"), "/"),
 			RegistryURL: "", // default registry
 		}
-		fmt.Printf("⚠️ Warning: Falling back to default environment without connectivity check (domain=%s, mlop=%s)\n", cfg.Domain, selectedEnv.MLOPBaseURL)
+		logger.Warning("⚠️ Warning: Falling back to default environment without connectivity check",
+			fmt.Sprintf("domain=%s, mlop=%s", cfg.Domain, selectedEnv.MLOPBaseURL))
 		return selectedEnv
 	}
 

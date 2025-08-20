@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"claude_analysis/cmd/installer/internal/env"
+	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/platform"
 )
 
@@ -29,7 +30,7 @@ type HookAction = Hook
 
 // UpdateClaudeCodeSettings - TUI-based settings configuration with optional token parameter
 func UpdateClaudeCodeSettings(token ...string) error {
-	fmt.Println("🔑 Updating GAISF API Key...")
+	logger.Info("🔑 Updating GAISF API Key...")
 	// Resolve settings path and load existing settings (if any) for merge
 	homeDir, _ := os.UserHomeDir()
 	targetDir := filepath.Join(homeDir, ".claude")
@@ -44,7 +45,7 @@ func UpdateClaudeCodeSettings(token ...string) error {
 			if jerr := json.Unmarshal(existingData, &es); jerr == nil {
 				existingSettings = &es
 			} else {
-				fmt.Printf("⚠️ Warning: Existing settings.json is not valid JSON; proceeding with defaults: %v\n", jerr)
+				logger.Warning("⚠️ Warning: Existing settings.json is not valid JSON; proceeding with defaults", fmt.Sprintf("Error: %v", jerr))
 			}
 		}
 	}
@@ -57,17 +58,17 @@ func UpdateClaudeCodeSettings(token ...string) error {
 	// Check if token is provided as parameter
 	if len(token) > 0 && token[0] != "" {
 		gaisfToken = token[0]
-		fmt.Println("🔑 Using provided token...")
+		logger.Success("🔑 Using provided token...")
 	} else {
 		// For now, just skip GAISF configuration
 		// This will be implemented when we integrate with UI
-		fmt.Println("⏭️ Skipping GAISF configuration...")
+		logger.Info("⏭️ Skipping GAISF configuration...")
 	}
 
 	// Build settings from existing (if any) and ensure unified defaults
 	var settings Settings
 	if existingSettings != nil {
-		fmt.Println("📋 Found existing settings, merging configurations...")
+		logger.Info("📋 Found existing settings, merging configurations...")
 		settings = *existingSettings
 	}
 	EnsureDefaultSettings(&settings, hookPath, chosen.MLOPBaseURL, "")
@@ -92,7 +93,7 @@ func UpdateClaudeCodeSettings(token ...string) error {
 	if err := os.WriteFile(target, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", target, err)
 	}
-	fmt.Printf("✅ Wrote settings to: %s\n", target)
+	logger.Success("✅ Settings saved successfully", fmt.Sprintf("Location: %s", target))
 	return nil
 }
 

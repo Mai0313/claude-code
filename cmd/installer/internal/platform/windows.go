@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"claude_analysis/cmd/installer/internal/logger"
 )
 
 // Windows-specific functionality
@@ -36,23 +38,23 @@ func InstallNodeWindows() error {
 		return fmt.Errorf("create target dir %s: %w (try running as Administrator)", targetDir, err)
 	}
 
-	fmt.Printf("📦 Extracting Node.js from %s to %s...\n", zipPath, targetDir)
+	logger.Info("📦 Extracting Node.js from zip archive", fmt.Sprintf("From: %s\nTo: %s", zipPath, targetDir))
 	if err := unzip(zipPath, targetDir); err != nil {
 		return fmt.Errorf("extract node zip: %w", err)
 	}
 
 	// Some Node.js zips wrap files in a single version folder. Flatten it.
 	if err := flattenIfSingleSubdir(targetDir); err != nil {
-		fmt.Printf("⚠️ Warning: Failed to flatten node directory: %v\n", err)
+		logger.Warning("⚠️ Failed to flatten node directory", fmt.Sprintf("Error: %v", err))
 	}
 
 	// Persist user environment variables (User scope)
 	if err := setWindowsUserEnv("NODE_HOME", targetDir); err != nil {
-		fmt.Printf("⚠️ Warning: Failed to set NODE_HOME (user): %v\n", err)
+		logger.Warning("⚠️ Failed to set NODE_HOME (user)", fmt.Sprintf("Error: %v", err))
 	}
 	// Ensure PATH includes targetDir
 	if err := ensureWindowsUserPathIncludes(targetDir); err != nil {
-		fmt.Printf("⚠️ Warning: Failed to update PATH (user): %v\n", err)
+		logger.Warning("⚠️ Failed to update PATH (user)", fmt.Sprintf("Error: %v", err))
 	}
 
 	// Also update current process environment so subsequent steps in this run can use node/npm immediately
@@ -61,10 +63,10 @@ func InstallNodeWindows() error {
 
 	// Broadcast environment change so future processes can pick up updated user env without reboot
 	if err := broadcastWindowsEnvChange(); err != nil {
-		fmt.Printf("⚠️ Warning: Failed to broadcast environment change: %v\n", err)
+		logger.Warning("⚠️ Failed to broadcast environment change", fmt.Sprintf("Error: %v", err))
 	}
 
-	fmt.Println("✅ Node.js installed on Windows.")
+	logger.Success("✅ Node.js installed on Windows.")
 	return nil
 }
 
@@ -171,10 +173,14 @@ func setWindowsUserEnv(name, value string) error {
 	output, err := cmd.CombinedOutput()
 	if err != nil && len(output) > 0 {
 		lines := strings.Split(string(output), "\n")
+		var outputLines []string
 		for _, line := range lines {
 			if strings.TrimSpace(line) != "" {
-				fmt.Printf("   %s\n", line)
+				outputLines = append(outputLines, "   "+line)
 			}
+		}
+		if len(outputLines) > 0 {
+			logger.Error("PowerShell output:", strings.Join(outputLines, "\n"))
 		}
 	}
 	return err
@@ -251,10 +257,14 @@ public static class NativeMethods {
 	output, err := cmd.CombinedOutput()
 	if err != nil && len(output) > 0 {
 		lines := strings.Split(string(output), "\n")
+		var outputLines []string
 		for _, line := range lines {
 			if strings.TrimSpace(line) != "" {
-				fmt.Printf("   %s\n", line)
+				outputLines = append(outputLines, "   "+line)
 			}
+		}
+		if len(outputLines) > 0 {
+			logger.Error("PowerShell broadcast output:", strings.Join(outputLines, "\n"))
 		}
 	}
 	return err

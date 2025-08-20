@@ -88,6 +88,8 @@ After the installer starts, you'll see the main menu:
 
 ![Installer Main Menu](images/installer_menu1.png)
 
+![Downloading](images/installing.png)
+
 > ⏳ **Please be patient**: This step includes downloading and installing Node.js v22 and Claude Code CLI, which may take several minutes.
 
 After completion, you'll see this screen guiding you to the next step

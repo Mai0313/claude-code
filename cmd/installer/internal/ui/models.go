@@ -47,6 +47,11 @@ type Model struct {
 	InputPrompt string
 	InputType   string // "username", "password", "token"
 	GAISFConfig *GAISFConfig
+
+	// Enhanced status tracking
+	StatusMessages  []StatusMsg
+	CurrentProgress *ProgressMsg
+	ShowDetails     bool
 }
 
 // GAISF configuration state
@@ -94,6 +99,31 @@ type OperationResult struct {
 	Message           string
 	IsError           bool
 	AutoSwitchToGAISF bool // New field to indicate auto-switch to GAISF
+}
+
+// Status message types for real-time updates
+type StatusMsg struct {
+	Type    StatusType
+	Message string
+	Details string // Optional additional details
+}
+
+type StatusType int
+
+const (
+	StatusInfo StatusType = iota
+	StatusSuccess
+	StatusWarning
+	StatusError
+	StatusProgress
+)
+
+// Progress message for detailed progress tracking
+type ProgressMsg struct {
+	Step        int
+	TotalSteps  int
+	CurrentTask string
+	Percentage  float64
 }
 
 // GAISF authentication result
