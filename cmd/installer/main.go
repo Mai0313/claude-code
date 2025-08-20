@@ -72,26 +72,353 @@ type Environment struct {
 
 var selectedEnv *Environment
 
+func clearScreen() {
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command("cmd", "/c", "cls")
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	} else {
+		fmt.Print("\033[H\033[2J")
+	}
+}
+
 func main() {
 	// Ensure child processes that support NO_COLOR also disable colorized output
 	_ = os.Setenv("NO_COLOR", "1")
 	// Allow self-signed certs for current process
 	_ = os.Setenv("NODE_TLS_REJECT_UNAUTHORIZED", "0")
 
-	err := run()
-	if err != nil {
-		fmt.Printf("Error: Installation failed: %v\n", err)
-	} else {
-		fmt.Println("Installation completed successfully.")
+	// Clear screen and show welcome
+	clearScreen()
+	showMainMenu()
+}
+
+// Menu item structure
+type MenuItem struct {
+	Label       string
+	Description string
+	Action      func() error
+}
+
+func showMainMenu() {
+	menuItems := []MenuItem{
+		{
+			Label:       "🚀 Full Installation",
+			Description: "Node.js + Claude CLI + Configuration",
+			Action:      runFullInstall,
+		},
+		{
+			Label:       "🔑 Update GAISF API Key",
+			Description: "Update GAISF token in existing configuration",
+			Action:      updateGAISFKey,
+		},
+		{
+			Label:       "📦 Install Node.js",
+			Description: "Install Node.js version 22+",
+			Action:      installNodeJS,
+		},
+		{
+			Label:       "🤖 Install/Update Claude CLI",
+			Description: "Install or update Claude CLI package",
+			Action:      installOrUpdateClaude,
+		},
+		{
+			Label:       "❌ Exit",
+			Description: "Quit the program",
+			Action:      nil,
+		},
 	}
-	pauseIfInteractive()
-	if err != nil {
-		os.Exit(1)
+
+	for {
+		selectedIndex := showInteractiveMenu(menuItems)
+
+		if selectedIndex == len(menuItems)-1 { // Exit option
+			fmt.Println("👋 Thank you for using Claude Code Installer!")
+			pauseIfInteractive()
+			return
+		}
+
+		// Execute selected action
+		if menuItems[selectedIndex].Action != nil {
+			executeWithErrorHandling(menuItems[selectedIndex].Label, menuItems[selectedIndex].Action)
+		}
+
+		fmt.Println()
+		fmt.Println("Press Enter to return to main menu...")
+		reader := bufio.NewReader(os.Stdin)
+		reader.ReadString('\n')
+		clearScreen() // Clear screen
 	}
 }
 
+func showInteractiveMenu(items []MenuItem) int {
+	for {
+		// Clear screen and move cursor to top
+		clearScreen()
+		fmt.Println(`
+		=============================================
+		🤖 Claude Code Installer & Configuration Tool
+		=============================================
+		`)
+		fmt.Println()
+
+		// Display menu items with numbers
+		for i, item := range items {
+			fmt.Printf("%d. %s", i+1, item.Label)
+			if item.Description != "" {
+				fmt.Printf(" (%s)", item.Description)
+			}
+			fmt.Println()
+		}
+
+		fmt.Println()
+		fmt.Printf("Please select an option (1-%d) [default: 1]: ", len(items))
+
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		// Default to first option if empty input
+		if input == "" {
+			return 0
+		}
+
+		// Handle quit options
+		if strings.ToLower(input) == "q" || strings.ToLower(input) == "quit" || strings.ToLower(input) == "exit" {
+			return len(items) - 1
+		}
+
+		// Parse number selection
+		var selectedIndex int
+		if _, err := fmt.Sscanf(input, "%d", &selectedIndex); err == nil {
+			selectedIndex-- // Convert to 0-based index
+			if selectedIndex >= 0 && selectedIndex < len(items) {
+				return selectedIndex
+			}
+		}
+
+		fmt.Printf("Invalid selection. Please enter a number between 1 and %d.\n", len(items))
+		fmt.Println("Press Enter to continue...")
+		reader.ReadString('\n')
+	}
+}
+
+func showGAISFConfigMenu() int {
+	gaifsMenuItems := []MenuItem{
+		{
+			Label:       "🔑 Auto-configure GAISF token",
+			Description: "Login with username/password to get token",
+			Action:      nil,
+		},
+		{
+			Label:       "📝 Manual token input",
+			Description: "Enter GAISF token manually",
+			Action:      nil,
+		},
+		{
+			Label:       "⏭️  Skip GAISF configuration",
+			Description: "Continue without API authentication",
+			Action:      nil,
+		},
+	}
+
+	for {
+		// Clear screen and move cursor to top
+		clearScreen()
+
+		fmt.Println("🔑 GAISF API Authentication Setup")
+		fmt.Println()
+		fmt.Println("Configure GAISF token for API authentication?")
+		fmt.Println()
+
+		// Display menu items with numbers
+		for i, item := range gaifsMenuItems {
+			fmt.Printf("%d. %s", i+1, item.Label)
+			if item.Description != "" {
+				fmt.Printf(" (%s)", item.Description)
+			}
+			fmt.Println()
+		}
+
+		fmt.Println()
+		fmt.Printf("Please select an option (1-%d) [default: 1]: ", len(gaifsMenuItems))
+
+		reader := bufio.NewReader(os.Stdin)
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		// Default to first option if empty input
+		if input == "" {
+			return 0
+		}
+
+		// Handle quit options - skip configuration
+		if strings.ToLower(input) == "q" || strings.ToLower(input) == "quit" || strings.ToLower(input) == "exit" {
+			return 2 // Skip configuration (index 2)
+		}
+
+		// Parse number selection
+		var selectedIndex int
+		if _, err := fmt.Sscanf(input, "%d", &selectedIndex); err == nil {
+			selectedIndex-- // Convert to 0-based index
+			if selectedIndex >= 0 && selectedIndex < len(gaifsMenuItems) {
+				return selectedIndex
+			}
+		}
+
+		fmt.Printf("Invalid selection. Please enter a number between 1 and %d.\n", len(gaifsMenuItems))
+		fmt.Println("Press Enter to continue...")
+		reader.ReadString('\n')
+	}
+}
+
+func executeWithErrorHandling(operationName string, operation func() error) {
+	clearScreen() // Clear screen
+	fmt.Printf("Executing: %s\n", operationName)
+	fmt.Println(strings.Repeat("=", 50))
+
+	if err := operation(); err != nil {
+		fmt.Printf("❌ Error: %s failed: %v\n", operationName, err)
+	} else {
+		fmt.Printf("✅ %s completed successfully!\n", operationName)
+	}
+
+	fmt.Println(strings.Repeat("=", 50))
+}
+
+func runFullInstall() error {
+	fmt.Println("🚀 Starting full Claude Code installation...")
+	return run()
+}
+
+func updateGAISFKey() error {
+	fmt.Println("🔑 Updating GAISF API Key...")
+
+	// Check if settings.json exists
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to get home dir: %w", err)
+	}
+	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
+
+	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+		return fmt.Errorf("settings.json not found at %s. Please run full installation first", settingsPath)
+	}
+
+	// Load existing settings
+	var settings Settings
+	if existingData, err := os.ReadFile(settingsPath); err == nil {
+		if err := json.Unmarshal(existingData, &settings); err != nil {
+			return fmt.Errorf("failed to parse existing settings: %w", err)
+		}
+	}
+
+	// Get new GAISF token
+	chosen := selectAvailableUrl()
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Print("Enter username: ")
+	username, _ := reader.ReadString('\n')
+	username = strings.TrimSpace(username)
+
+	fmt.Print("Enter password: ")
+	password, _ := reader.ReadString('\n')
+	password = strings.TrimSpace(password)
+
+	if username == "" || password == "" {
+		return errors.New("username and password are required")
+	}
+
+	fmt.Printf("Attempting to get GAISF token for user: %s\n", username)
+	token, err := getGAISFToken(username, password)
+	if err != nil {
+		fmt.Printf("Failed to get GAISF token automatically: %v\n", err)
+		fmt.Println("=== Manual GAISF Token Setup ===")
+		fmt.Printf("Login URL: %s\n", chosen.MLOPBaseURL+"/auth/login")
+		fmt.Print("Enter your GAISF token: ")
+		manualToken, _ := reader.ReadString('\n')
+		token = strings.TrimSpace(manualToken)
+		if token == "" {
+			return errors.New("no token provided")
+		}
+	}
+
+	// Update settings with new token
+	if settings.Env == nil {
+		settings.Env = make(map[string]string)
+	}
+	settings.Env["ANTHROPIC_CUSTOM_HEADERS"] = "api-key: " + token
+
+	// Save updated settings
+	data, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal settings: %w", err)
+	}
+
+	if err := os.WriteFile(settingsPath, data, 0o644); err != nil {
+		return fmt.Errorf("failed to write settings: %w", err)
+	}
+
+	fmt.Println("✅ GAISF API Key updated successfully!")
+	return nil
+}
+
+func installNodeJS() error {
+	fmt.Println("📦 Installing Node.js...")
+
+	if checkNodeVersion() {
+		fmt.Println("✅ Node.js version >= 22 already installed!")
+		return nil
+	}
+
+	if isCommandAvailable("node") {
+		fmt.Println("Node.js found but version is less than 22. Upgrading...")
+	} else {
+		fmt.Println("Node.js not found. Installing...")
+	}
+
+	switch runtime.GOOS {
+	case "windows":
+		if err := installNodeWindows(); err != nil {
+			return fmt.Errorf("failed to install Node.js on Windows: %w", err)
+		}
+	case "darwin":
+		if err := installNodeDarwin(); err != nil {
+			return fmt.Errorf("failed to install Node.js on macOS: %w", err)
+		}
+	case "linux":
+		if err := installNodeLinux(); err != nil {
+			return fmt.Errorf("failed to install Node.js on Linux: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+	}
+
+	fmt.Println("✅ Node.js installation completed!")
+	return nil
+}
+
+func installOrUpdateClaude() error {
+	fmt.Println("🤖 Installing/Updating Claude Code CLI...")
+
+	if err := installClaudeCLI(); err != nil {
+		return fmt.Errorf("failed to install/update Claude CLI: %w", err)
+	}
+
+	fmt.Println("✅ Claude Code CLI installation/update completed!")
+	return nil
+}
+
 func run() error {
+	fmt.Println("\n📋 Installation Steps:")
+	fmt.Println("1. ✓ Check/Install Node.js")
+	fmt.Println("2. ✓ Install Claude CLI")
+	fmt.Println("3. ✓ Install claude_analysis binary")
+	fmt.Println("4. ✓ Generate settings.json")
+	fmt.Println()
+
 	// 1) Node.js check/install guidance
+	fmt.Println("📦 Step 1: Checking Node.js...")
 	if !checkNodeVersion() {
 		if isCommandAvailable("node") {
 			fmt.Println("Node.js found but version is less than 22. Upgrading...")
@@ -116,26 +443,29 @@ func run() error {
 			return fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 		}
 	} else {
-		fmt.Println("Node.js version >= 22 found. Skipping Node.js installation.")
+		fmt.Println("✅ Node.js version >= 22 found. Skipping Node.js installation.")
 	}
 
 	// 2) Install @anthropic-ai/claude-code with registry fallbacks
-	fmt.Println("Installing/Updating Claude CLI (@anthropic-ai/claude-code@latest)...")
+	fmt.Println("\n🤖 Step 2: Installing/Updating Claude CLI...")
 	if err := installClaudeCLI(); err != nil {
 		return err
 	}
 
 	// 3) Move claude_analysis to ~/.claude with platform-specific name
+	fmt.Println("\n⚙️  Step 3: Installing claude_analysis binary...")
 	destPath, err := installClaudeAnalysisBinary()
 	if err != nil {
 		return err
 	}
 
 	// 4) Generate settings.json to ~/.claude/settings.json
+	fmt.Println("\n📝 Step 4: Generating configuration...")
 	if err := writeSettingsJSON(destPath); err != nil {
 		return err
 	}
 
+	fmt.Println("\n🎉 Installation completed successfully!")
 	return nil
 }
 
@@ -774,9 +1104,9 @@ func installClaudeCLI() error {
 	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest", "--no-color", "--silent"}
 	if chosen.RegistryURL != "" {
 		args = append(args, "--registry="+chosen.RegistryURL)
-		fmt.Printf("Installing @anthropic-ai/claude-code with registry: %s\n", chosen.RegistryURL)
+		fmt.Printf("📦 Installing @anthropic-ai/claude-code with registry: %s\n", chosen.RegistryURL)
 	} else {
-		fmt.Println("Installing @anthropic-ai/claude-code via default registry...")
+		fmt.Println("📦 Installing @anthropic-ai/claude-code via default registry...")
 	}
 
 	if err := runLoggedCmd(npmPath(), args...); err != nil {
@@ -788,6 +1118,7 @@ func installClaudeCLI() error {
 		return fmt.Errorf("installation verification failed: %w", err)
 	}
 
+	fmt.Println("✅ Claude CLI installed successfully!")
 	return nil
 }
 
@@ -832,7 +1163,7 @@ func installClaudeAnalysisBinary() (string, error) {
 	if err := copyFile(srcPath, destPath, 0o755); err != nil {
 		return "", fmt.Errorf("failed to install claude_analysis to %s: %w", destPath, err)
 	}
-	fmt.Printf("Installed claude_analysis to: %s\n", destPath)
+	fmt.Printf("✅ Installed claude_analysis to: %s\n", destPath)
 	return destPath, nil
 }
 
@@ -870,7 +1201,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 			if jerr := json.Unmarshal(existingData, &es); jerr == nil {
 				existingSettings = &es
 			} else {
-				fmt.Printf("Warning: Existing settings.json is not valid JSON; proceeding with defaults: %v\n", jerr)
+				fmt.Printf("⚠️  Warning: Existing settings.json is not valid JSON; proceeding with defaults: %v\n", jerr)
 			}
 		}
 	}
@@ -880,7 +1211,9 @@ func writeSettingsJSON(installedBinaryPath string) error {
 
 	// Try to get GAISF token for API authentication (only ask when we're going to write)
 	var apiKeyHeader string
-	if askYesNo("Do you want to configure GAISF token for API authentication? (y/N): ", false) {
+	gaisfChoice := showGAISFConfigMenu()
+
+	if gaisfChoice == 0 { // Auto-configure
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("Enter username: ")
 		username, _ := reader.ReadString('\n')
@@ -890,12 +1223,12 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		password = strings.TrimSpace(password)
 
 		if username != "" && password != "" {
-			fmt.Printf("Attempting to get GAISF token for user: %s\n", username)
+			fmt.Printf("🔐 Attempting to get GAISF token for user: %s\n", username)
 			if token, err := getGAISFToken(username, password); err == nil {
 				apiKeyHeader = "api-key: " + token
-				fmt.Println("GAISF token obtained successfully.")
+				fmt.Println("✅ GAISF token obtained successfully.")
 			} else {
-				fmt.Printf("Warning: Failed to get GAISF token: %v\n", err)
+				fmt.Printf("⚠️  Warning: Failed to get GAISF token: %v\n", err)
 				fmt.Println("=== Manual GAISF Token Setup ===")
 				fmt.Println("Follow steps in your browser to get your GAISF token then paste it below.")
 				fmt.Printf("Login URL: %s\n", chosen.MLOPBaseURL+"/auth/login")
@@ -904,14 +1237,28 @@ func writeSettingsJSON(installedBinaryPath string) error {
 				apiKey = strings.TrimSpace(apiKey)
 				if apiKey != "" {
 					apiKeyHeader = "api-key: " + apiKey
-					fmt.Println("GAISF token configured successfully.")
+					fmt.Println("✅ GAISF token configured successfully.")
 				} else {
-					fmt.Println("Skipping GAISF token configuration...")
+					fmt.Println("⏭️  Skipping GAISF token configuration...")
 				}
 			}
 		}
-	} else {
-		fmt.Println("Skipping GAISF token configuration.")
+	} else if gaisfChoice == 1 { // Manual token input
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Println("📝 Manual GAISF Token Input")
+		fmt.Printf("Login URL: %s\n", chosen.MLOPBaseURL+"/auth/login")
+		fmt.Println("Please get your GAISF token from the above URL and paste it below.")
+		fmt.Print("Enter your GAISF token: ")
+		apiKey, _ := reader.ReadString('\n')
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey != "" {
+			apiKeyHeader = "api-key: " + apiKey
+			fmt.Println("✅ GAISF token configured successfully.")
+		} else {
+			fmt.Println("⏭️  No token provided, skipping GAISF configuration...")
+		}
+	} else { // Skip configuration
+		fmt.Println("⏭️  Skipping GAISF token configuration.")
 	}
 
 	// Use the actual installed binary path
@@ -920,7 +1267,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	// Build settings from existing (if any) and ensure unified defaults
 	var settings Settings
 	if existingSettings != nil {
-		fmt.Println("Found existing settings, merging configurations...")
+		fmt.Println("📋 Found existing settings, merging configurations...")
 		settings = *existingSettings
 	}
 	ensureDefaultSettings(&settings, hookPath, chosen.MLOPBaseURL, "")
@@ -942,7 +1289,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	if err := os.WriteFile(target, data, 0o644); err != nil {
 		return fmt.Errorf("failed to write %s: %w", target, err)
 	}
-	fmt.Printf("Wrote settings to: %s\n", target)
+	fmt.Printf("✅ Wrote settings to: %s\n", target)
 	return nil
 }
 
@@ -1021,18 +1368,6 @@ func findClaudeBinary() (string, bool) {
 		return p, true
 	}
 	return "", false
-}
-
-// askYesNo prompts the user and returns true for yes/false for no. Defaults apply when input is empty.
-func askYesNo(prompt string, defaultYes bool) bool {
-	fmt.Print(prompt)
-	r := bufio.NewReader(os.Stdin)
-	resp, _ := r.ReadString('\n')
-	resp = strings.TrimSpace(strings.ToLower(resp))
-	if resp == "" {
-		return defaultYes
-	}
-	return resp == "y" || resp == "yes"
 }
 
 // applyDefaultEnv sets/overwrites the expected env defaults used by settings.json

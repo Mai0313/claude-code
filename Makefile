@@ -6,6 +6,8 @@ BIN_NAME := claude_analysis
 INSTALLER_NAME := installer
 NODE_WIN_ZIP := node-v22.18.0-win-x64.zip
 NODE_WIN_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ZIP)
+NODE_WIN_ARM64_ZIP := node-v22.18.0-win-arm64.zip
+NODE_WIN_ARM64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ARM64_ZIP)
 
 # Default target
 .PHONY: all
@@ -19,8 +21,8 @@ build:
 	go build -o $(BUILD_DIR)/$(INSTALLER_NAME) ./cmd/installer
 
 # Build for multiple platforms
-.PHONY: build-all build_linux_amd64 build_linux_arm64 build_windows_amd64 build_darwin_amd64 build_darwin_arm64
-build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_darwin_amd64 build_darwin_arm64
+.PHONY: build-all build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
+build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
 
 build_linux_amd64:
 	@mkdir -p $(BUILD_DIR)
@@ -37,6 +39,11 @@ build_windows_amd64:
 	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
 	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe ./cmd/installer
 
+build_windows_arm64:
+	@mkdir -p $(BUILD_DIR)
+	GOOS=windows GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-arm64.exe ./cmd/claude_analysis
+	GOOS=windows GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe ./cmd/installer
+
 build_darwin_amd64:
 	@mkdir -p $(BUILD_DIR)
 	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
@@ -48,8 +55,8 @@ build_darwin_arm64:
 	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 ./cmd/installer
 
 # Packaging to Claude-Code-Installer-{platform}.zip
-.PHONY: package-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_darwin_amd64 package_darwin_arm64
-package-all: build-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_darwin_amd64 package_darwin_arm64
+.PHONY: package-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_windows_arm64 package_darwin_amd64 package_darwin_arm64
+package-all: build-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_windows_arm64 package_darwin_amd64 package_darwin_arm64
 
 package_linux_amd64: build_linux_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 $(BUILD_DIR)/claude_analysis
@@ -70,10 +77,20 @@ package_windows_amd64: build_windows_amd64
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe $(BUILD_DIR)/installer.exe
 	@mkdir -p $(BUILD_DIR)
 	@echo "Downloading $(NODE_WIN_ZIP) ..."
-	curl -fSL -o $(BUILD_DIR)/$(NODE_WIN_ZIP) $(NODE_WIN_URL)
+	@curl -fSL -o $(BUILD_DIR)/$(NODE_WIN_ZIP) $(NODE_WIN_URL) --silent
 	@cd $(BUILD_DIR) && cp ../README*.md . && \
 	  zip -q -9 "Claude-Code-Installer-windows-amd64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ZIP) README*.md && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ZIP)
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe
+
+package_windows_arm64: build_windows_arm64
+	@cp $(BUILD_DIR)/$(BIN_NAME)-windows-arm64.exe $(BUILD_DIR)/claude_analysis.exe
+	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe $(BUILD_DIR)/installer.exe
+	@mkdir -p $(BUILD_DIR)
+	@echo "Downloading $(NODE_WIN_ARM64_ZIP) ..."
+	@curl -fSL -o $(BUILD_DIR)/$(NODE_WIN_ARM64_ZIP) $(NODE_WIN_ARM64_URL) --silent
+	@cd $(BUILD_DIR) && cp ../README*.md . && \
+	  zip -q -9 "Claude-Code-Installer-windows-arm64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ARM64_ZIP) README*.md && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ARM64_ZIP)
+	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe
 
 package_darwin_amd64: build_darwin_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 $(BUILD_DIR)/claude_analysis
