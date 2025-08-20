@@ -691,7 +691,7 @@ func addToPath(pathVar, dir string) string {
 }
 
 // windowsNodeInstallDir returns the managed Node.js install directory under the current user's home.
-// Example: %USERPROFILE%\nodejs4claude
+// Example: %USERPROFILE%\.claude\nodejs
 func windowsNodeInstallDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -701,7 +701,7 @@ func windowsNodeInstallDir() (string, error) {
 	if home == "" {
 		return "", errors.New("user home directory is empty")
 	}
-	return filepath.Join(home, "nodejs4claude"), nil
+	return filepath.Join(home, ".claude", "nodejs"), nil
 }
 
 // broadcastWindowsEnvChange notifies the system that environment variables changed.
