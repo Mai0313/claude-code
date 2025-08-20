@@ -61,15 +61,15 @@ package-all: build-all package_linux_amd64 package_linux_arm64 package_windows_a
 package_linux_amd64: build_linux_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 $(BUILD_DIR)/installer
-	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-linux-amd64.zip" claude_analysis installer README*.md && rm -f claude_analysis installer README*.md
+	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
+	  zip -q -9 -r "Claude-Code-Installer-linux-amd64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64
 
 package_linux_arm64: build_linux_arm64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 $(BUILD_DIR)/installer
-	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-linux-arm64.zip" claude_analysis installer README*.md && rm -f claude_analysis installer README*.md
+	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
+	  zip -q -9 -r "Claude-Code-Installer-linux-arm64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64
 
 package_windows_amd64: build_windows_amd64
@@ -78,8 +78,8 @@ package_windows_amd64: build_windows_amd64
 	@mkdir -p $(BUILD_DIR)
 	@echo "Downloading $(NODE_WIN_ZIP) ..."
 	@curl -fSL -o $(BUILD_DIR)/$(NODE_WIN_ZIP) $(NODE_WIN_URL) --silent
-	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-windows-amd64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ZIP) README*.md && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ZIP)
+	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
+	  zip -q -9 -r "Claude-Code-Installer-windows-amd64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ZIP) README*.md images && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ZIP) && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe
 
 package_windows_arm64: build_windows_arm64
@@ -88,22 +88,22 @@ package_windows_arm64: build_windows_arm64
 	@mkdir -p $(BUILD_DIR)
 	@echo "Downloading $(NODE_WIN_ARM64_ZIP) ..."
 	@curl -fSL -o $(BUILD_DIR)/$(NODE_WIN_ARM64_ZIP) $(NODE_WIN_ARM64_URL) --silent
-	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-windows-arm64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ARM64_ZIP) README*.md && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ARM64_ZIP)
+	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
+	  zip -q -9 -r "Claude-Code-Installer-windows-arm64.zip" claude_analysis.exe installer.exe $(NODE_WIN_ARM64_ZIP) README*.md images && rm -f claude_analysis.exe installer.exe README*.md $(NODE_WIN_ARM64_ZIP) && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe
 
 package_darwin_amd64: build_darwin_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 $(BUILD_DIR)/installer
-	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-darwin-amd64.zip" claude_analysis installer README*.md && rm -f claude_analysis installer README*.md
+	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
+	  zip -q -9 -r "Claude-Code-Installer-darwin-amd64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64
 
 package_darwin_arm64: build_darwin_arm64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 $(BUILD_DIR)/installer
-	@cd $(BUILD_DIR) && cp ../README*.md . && \
-	  zip -q -9 "Claude-Code-Installer-darwin-arm64.zip" claude_analysis installer README*.md && rm -f claude_analysis installer README*.md
+	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
+	  zip -q -9 -r "Claude-Code-Installer-darwin-arm64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64
 
 # Clean build artifacts
