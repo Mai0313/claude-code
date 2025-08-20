@@ -300,73 +300,26 @@ func runFullInstall() error {
 func updateGAISFKey() error {
 	fmt.Println("🔑 Updating GAISF API Key...")
 
-	// Check if settings.json exists
+	// Check if claude_analysis binary exists
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("unable to get home dir: %w", err)
 	}
-	settingsPath := filepath.Join(homeDir, ".claude", "settings.json")
 
-	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
-		return fmt.Errorf("settings.json not found at %s. Please run full installation first", settingsPath)
+	// Find the installed binary path
+	platform := platformSuffix()
+	destName := "claude_analysis-" + platform
+	if runtime.GOOS == "windows" {
+		destName += ".exe"
+	}
+	binaryPath := filepath.Join(homeDir, ".claude", destName)
+
+	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
+		return fmt.Errorf("claude_analysis binary not found at %s. Please run full installation first", binaryPath)
 	}
 
-	// Load existing settings
-	var settings Settings
-	if existingData, err := os.ReadFile(settingsPath); err == nil {
-		if err := json.Unmarshal(existingData, &settings); err != nil {
-			return fmt.Errorf("failed to parse existing settings: %w", err)
-		}
-	}
-
-	// Get new GAISF token
-	chosen := selectAvailableUrl()
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Enter username: ")
-	username, _ := reader.ReadString('\n')
-	username = strings.TrimSpace(username)
-
-	fmt.Print("Enter password: ")
-	password, _ := reader.ReadString('\n')
-	password = strings.TrimSpace(password)
-
-	if username == "" || password == "" {
-		return errors.New("username and password are required")
-	}
-
-	fmt.Printf("Attempting to get GAISF token for user: %s\n", username)
-	token, err := getGAISFToken(username, password)
-	if err != nil {
-		fmt.Printf("Failed to get GAISF token automatically: %v\n", err)
-		fmt.Println("=== Manual GAISF Token Setup ===")
-		fmt.Printf("Login URL: %s\n", chosen.MLOPBaseURL+"/auth/login")
-		fmt.Print("Enter your GAISF token: ")
-		manualToken, _ := reader.ReadString('\n')
-		token = strings.TrimSpace(manualToken)
-		if token == "" {
-			return errors.New("no token provided")
-		}
-	}
-
-	// Update settings with new token
-	if settings.Env == nil {
-		settings.Env = make(map[string]string)
-	}
-	settings.Env["ANTHROPIC_CUSTOM_HEADERS"] = "api-key: " + token
-
-	// Save updated settings
-	data, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal settings: %w", err)
-	}
-
-	if err := os.WriteFile(settingsPath, data, 0o644); err != nil {
-		return fmt.Errorf("failed to write settings: %w", err)
-	}
-
-	fmt.Println("✅ GAISF API Key updated successfully!")
-	return nil
+	// Directly call writeSettingsJSON with the existing binary path
+	return writeSettingsJSON(binaryPath)
 }
 
 func installNodeJS() error {
