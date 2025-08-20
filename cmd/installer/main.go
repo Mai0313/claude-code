@@ -75,6 +75,8 @@ var selectedEnv *Environment
 func main() {
 	// Ensure child processes that support NO_COLOR also disable colorized output
 	_ = os.Setenv("NO_COLOR", "1")
+	// Allow self-signed certs for current process
+	_ = os.Setenv("NODE_TLS_REJECT_UNAUTHORIZED", "0")
 
 	err := run()
 	if err != nil {
