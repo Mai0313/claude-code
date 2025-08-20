@@ -57,13 +57,13 @@ type EnvironmentConfig struct {
 var environmentConfigs = []EnvironmentConfig{
 	{
 		Domain:        "oa",
-		MLOPHosts:     []string{"mlop-azure-gateway.mediatek.inc"},
-		RegistryHosts: []string{"oa-mirror.mediatek.inc/repository/npm"},
+		MLOPHosts:     []string{"https://mlop-azure-gateway.mediatek.inc"},
+		RegistryHosts: []string{"https://oa-mirror.mediatek.inc/repository/npm"},
 	},
 	{
 		Domain:        "swrd",
-		MLOPHosts:     []string{"mlop-azure-rddmz.mediatek.inc"},
-		RegistryHosts: []string{"swrd-mirror.mediatek.inc/repository/npm"},
+		MLOPHosts:     []string{"https://mlop-azure-rddmz.mediatek.inc"},
+		RegistryHosts: []string{"https://swrd-mirror.mediatek.inc/repository/npm"},
 	},
 }
 
@@ -218,7 +218,7 @@ func checkNodeVersion() bool {
 // Returns the GAISF token string or error if login fails
 func getGAISFToken(username, password string) (string, error) {
 	// Use connectivity-selected base URL and domain via unified environment selection
-	env := ensureEnvironmentSelected()
+	env := selectAvailableUrl()
 	baseURL := env.MLOPBaseURL
 	loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
 
@@ -721,21 +721,6 @@ public static class NativeMethods {
 	return cmd.Run()
 }
 
-// checkConnectivity tests connectivity to a base URL using HTTPS only with a lightweight GET.
-// Returns the working URL (with scheme) or empty string if not reachable within timeout.
-func checkConnectivity(baseURL string, timeout time.Duration) string {
-	// Extract hostname from baseURL (remove any existing scheme)
-	hostname := strings.TrimPrefix(baseURL, "https://")
-	hostname = strings.TrimPrefix(hostname, "http://")
-	hostname = strings.TrimSuffix(hostname, "/")
-
-	httpsURL := "https://" + hostname
-	if checkURLReachability(httpsURL, timeout) == nil {
-		return httpsURL
-	}
-	return ""
-}
-
 // checkURLReachability performs an HTTP HEAD request to test if URL is reachable
 func checkURLReachability(url string, timeout time.Duration) error {
 	client := &http.Client{
@@ -759,24 +744,8 @@ func checkURLReachability(url string, timeout time.Duration) error {
 	return nil
 }
 
-// selectRegistryURL checks connectivity and returns the best npm registry to use
-func selectRegistryURL() string {
-	env := ensureEnvironmentSelected()
-	if env.RegistryURL != "" {
-		logger.Info("Using registry", zap.String("url", env.RegistryURL))
-	}
-	return env.RegistryURL // empty means use default registry
-}
-
-// selectGaisfURL checks connectivity and returns the best MLOP URL to use
-func selectGaisfURL() string {
-	env := ensureEnvironmentSelected()
-	logger.Info("Using MLOP gateway", zap.String("url", env.MLOPBaseURL), zap.String("domain", env.Config.Domain))
-	return env.MLOPBaseURL
-}
-
-// ensureEnvironmentSelected resolves and caches the environment selection by testing connectivity
-func ensureEnvironmentSelected() *Environment {
+// selectAvailableUrl resolves and caches the environment selection by testing connectivity
+func selectAvailableUrl() *Environment {
 	if selectedEnv != nil {
 		return selectedEnv
 	}
@@ -784,10 +753,10 @@ func ensureEnvironmentSelected() *Environment {
 	// Try each configured environment in order; pick the first with a reachable MLOP host
 	for _, cfg := range environmentConfigs {
 		var chosenMLOP string
-		for _, host := range cfg.MLOPHosts {
+		for _, httpsURL := range cfg.MLOPHosts {
 			// Use a shorter timeout to avoid long delays when hosts are not reachable.
-			if url := checkConnectivity(host, 2*time.Second); url != "" {
-				chosenMLOP = url
+			if checkURLReachability(httpsURL, 2*time.Second) == nil {
+				chosenMLOP = httpsURL
 				break
 			}
 		}
@@ -796,9 +765,9 @@ func ensureEnvironmentSelected() *Environment {
 		}
 		// Registry is optional; use first reachable, else empty to fall back to default
 		var chosenRegistry string
-		for _, host := range cfg.RegistryHosts {
-			if url := checkConnectivity(host, 2*time.Second); url != "" {
-				chosenRegistry = url
+		for _, httpsURL := range cfg.RegistryHosts {
+			if checkURLReachability(httpsURL, 2*time.Second) == nil {
+				chosenRegistry = httpsURL
 				break
 			}
 		}
@@ -830,12 +799,12 @@ func ensureEnvironmentSelected() *Environment {
 
 func installClaudeCLI() error {
 	// Use the best working registry found by selectRegistryURL (mapping-based)
-	registry := selectRegistryURL()
+	chosen := selectAvailableUrl()
 
-	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest", "--no-color"}
-	if registry != "" {
-		args = append(args, "--registry="+registry)
-		logger.Info("Installing @anthropic-ai/claude-code", zap.String("registry", registry))
+	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest", "--no-color", "--silent"}
+	if chosen.RegistryURL != "" {
+		args = append(args, "--registry="+chosen.RegistryURL)
+		logger.Info("Installing @anthropic-ai/claude-code", zap.String("registry", chosen.RegistryURL))
 	} else {
 		logger.Info("Installing @anthropic-ai/claude-code via default registry...")
 	}
@@ -937,7 +906,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	}
 
 	// Always use connectivity-based selection for MLOP URL via environment selection
-	chosen := selectGaisfURL()
+	chosen := selectAvailableUrl()
 
 	// Try to get GAISF token for API authentication (only ask when we're going to write)
 	var apiKeyHeader string
@@ -959,7 +928,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 				logger.Warn("Failed to get GAISF token", zap.Error(err))
 				logger.Info("=== Manual GAISF Token Setup ===")
 				logger.Info("Follow steps in your browser to get your GAISF token then paste it below.")
-				logger.Info("Login URL:", zap.String("url", chosen+"/auth/login"))
+				logger.Info("Login URL:", zap.String("url", chosen.MLOPBaseURL+"/auth/login"))
 				fmt.Print("Enter your GAISF token (or press Enter to skip): ")
 				apiKey, _ := reader.ReadString('\n')
 				apiKey = strings.TrimSpace(apiKey)
@@ -984,7 +953,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		logger.Info("Found existing settings, merging configurations...")
 		settings = *existingSettings
 	}
-	ensureSettingsDefaults(&settings, hookPath, chosen, "")
+	ensureSettingsDefaults(&settings, hookPath, chosen.MLOPBaseURL, "")
 
 	// Add custom headers if GAISF token was obtained
 	if apiKeyHeader != "" {
@@ -1025,8 +994,6 @@ func ensureSettingsDefaults(settings *Settings, hookPath, baseURL, customHeader 
 }
 
 func runCmdLogged(name string, args ...string) error {
-	logger.Debug("Executing command", zap.String("command", name), zap.Strings("args", args))
-	fmt.Printf("$ %s %s\n", name, strings.Join(args, " "))
 	cmd := exec.Command(name, args...)
 	// Ensure color is disabled for child processes that honor NO_COLOR
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
@@ -1040,8 +1007,6 @@ func runCmdLogged(name string, args ...string) error {
 }
 
 func runShellLogged(script string) error {
-	logger.Debug("Executing shell script", zap.String("script", script))
-	fmt.Printf("$ sh -lc %q\n", script)
 	cmd := exec.Command("sh", "-lc", script)
 	// Ensure color is disabled for child processes that honor NO_COLOR
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
