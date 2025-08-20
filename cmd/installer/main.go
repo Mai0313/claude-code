@@ -84,7 +84,7 @@ func main() {
 			Action:    nil,
 		},
 		ui.Item{
-			TitleText: "⏭️  Skip GAISF configuration",
+			TitleText: "⏭️ Skip GAISF configuration",
 			DescText:  "Continue without API authentication",
 			Action:    nil,
 		},

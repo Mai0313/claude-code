@@ -10,7 +10,7 @@ var (
 	TitleStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("#FAFAFA")).Background(lipgloss.Color("#7D56F4")).Padding(0, 1).Bold(true)
 	HeaderStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#7D56F4")).Bold(true).MarginBottom(1)
 	ItemStyle         = lipgloss.NewStyle().PaddingLeft(4)
-	SelectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("#EE6FF8")).Bold(true)
+	SelectedItemStyle = lipgloss.NewStyle().PaddingLeft(4).Foreground(lipgloss.Color("#EE6FF8")).Bold(true)
 
 	PaginationStyle = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
 	HelpStyle       = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)

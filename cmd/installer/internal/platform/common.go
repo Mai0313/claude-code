@@ -41,11 +41,20 @@ func RunLoggedCmd(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	// Ensure color is disabled for child processes that honor NO_COLOR
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+
+	// Capture output instead of direct piping to avoid TUI interference
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("❌ Error: Command failed: %s %v - %v\n", name, args, err)
+		if len(output) > 0 {
+			// Only show output if there's an error and we have output to show
+			lines := strings.Split(string(output), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					fmt.Printf("   %s\n", line)
+				}
+			}
+		}
 	}
 	return err
 }
@@ -54,11 +63,20 @@ func RunLoggedShell(script string) error {
 	cmd := exec.Command("sh", "-lc", script)
 	// Ensure color is disabled for child processes that honor NO_COLOR
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
+
+	// Capture output instead of direct piping to avoid TUI interference
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("❌ Error: Shell script failed: %s - %v\n", script, err)
+		if len(output) > 0 {
+			// Only show output if there's an error and we have output to show
+			lines := strings.Split(string(output), "\n")
+			for _, line := range lines {
+				if strings.TrimSpace(line) != "" {
+					fmt.Printf("   %s\n", line)
+				}
+			}
+		}
 	}
 	return err
 }

@@ -115,17 +115,11 @@ func (m Model) updateGAISFConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.CurrentView = InputView
 					return m, nil
 
-				case "⏭️  Skip GAISF configuration":
+				case "⏭️ Skip GAISF configuration":
 					m.GAISFConfig.Stage = "complete"
-					// Execute the actual update after skipping GAISF config
-					if m.Choice == "🔑 Update GAISF API Key" {
-						m.CurrentView = OperationView
-						m.Operation = "Executing: " + m.Choice
-						return m, m.executeGAISFUpdate("")
-					}
-					// For other cases, just go back to main menu
-					m.CurrentView = MainMenuView
-					return m, nil
+					m.CurrentView = OperationView
+					m.Operation = "Executing: " + m.Choice
+					return m, m.executeGAISFUpdate("")
 				}
 			}
 
@@ -498,7 +492,7 @@ func (m *GAISFConfigModel) View() string {
 		content.WriteString("Configure GAISF token for API authentication?\n\n")
 		content.WriteString("1. 🔑 Auto-configure GAISF token (Login with username/password)\n")
 		content.WriteString("2. 📝 Manual token input (Enter GAISF token manually)\n")
-		content.WriteString("3. ⏭️  Skip GAISF configuration (Continue without authentication)\n\n")
+		content.WriteString("3. ⏭️ Skip GAISF configuration (Continue without authentication)\n\n")
 		content.WriteString(PromptStyle.Render("Please select an option (1-3):"))
 
 	case "username":

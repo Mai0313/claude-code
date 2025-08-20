@@ -166,9 +166,18 @@ func setWindowsUserEnv(name, value string) error {
 	// Use PowerShell to persist user-level environment variable
 	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
 		fmt.Sprintf("[Environment]::SetEnvironmentVariable('%s','%s','User')", name, value))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	// Capture output to avoid TUI interference
+	output, err := cmd.CombinedOutput()
+	if err != nil && len(output) > 0 {
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.TrimSpace(line) != "" {
+				fmt.Printf("   %s\n", line)
+			}
+		}
+	}
+	return err
 }
 
 func getWindowsUserEnv(name string) (string, error) {
@@ -237,9 +246,18 @@ public static class NativeMethods {
 }
 "@; [IntPtr]$r=[IntPtr]::Zero; [void][NativeMethods]::SendMessageTimeout([IntPtr]0xffff, 0x1A, [IntPtr]::Zero, 'Environment', 0x0002, 5000, [ref]$r)`
 	cmd := exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	// Capture output to avoid TUI interference
+	output, err := cmd.CombinedOutput()
+	if err != nil && len(output) > 0 {
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.TrimSpace(line) != "" {
+				fmt.Printf("   %s\n", line)
+			}
+		}
+	}
+	return err
 }
 
 // GetWindowsNpmPath with Windows-specific fallback

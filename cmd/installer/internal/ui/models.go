@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -76,14 +75,15 @@ func (d ItemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 
 	str := fmt.Sprintf("%d. %s", index+1, i.TitleText)
 
-	fn := ItemStyle.Render
 	if index == m.Index() {
-		fn = func(s ...string) string {
-			return SelectedItemStyle.Render("> " + strings.Join(s, " "))
-		}
+		// Selected item: use SelectedItemStyle with indicator
+		rendered := SelectedItemStyle.Render("▶ " + str)
+		fmt.Fprint(w, rendered)
+	} else {
+		// Normal item: use ItemStyle with proper spacing
+		rendered := ItemStyle.Render("  " + str)
+		fmt.Fprint(w, rendered)
 	}
-
-	fmt.Fprint(w, fn(str))
 }
 
 // Message types
