@@ -84,7 +84,8 @@ func initLogger() {
 	config.EncoderConfig.MessageKey = "message"
 	config.EncoderConfig.CallerKey = zapcore.OmitKey     // Remove caller info for cleaner output
 	config.EncoderConfig.StacktraceKey = zapcore.OmitKey // Remove stacktrace for cleaner output
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	// Always disable colors to avoid ANSI sequences in any environment
+	config.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout("15:04:05")
 
 	var err error
@@ -98,6 +99,9 @@ func initLogger() {
 func main() {
 	initLogger()
 	defer logger.Sync()
+
+	// Ensure child processes that support NO_COLOR also disable colorized output
+	_ = os.Setenv("NO_COLOR", "1")
 
 	err := run()
 	if err != nil {
@@ -828,7 +832,7 @@ func installClaudeCLI() error {
 	// Use the best working registry found by selectRegistryURL (mapping-based)
 	registry := selectRegistryURL()
 
-	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest"}
+	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest", "--no-color"}
 	if registry != "" {
 		args = append(args, "--registry="+registry)
 		logger.Info("Installing @anthropic-ai/claude-code", zap.String("registry", registry))
@@ -1024,6 +1028,8 @@ func runCmdLogged(name string, args ...string) error {
 	logger.Debug("Executing command", zap.String("command", name), zap.Strings("args", args))
 	fmt.Printf("$ %s %s\n", name, strings.Join(args, " "))
 	cmd := exec.Command(name, args...)
+	// Ensure color is disabled for child processes that honor NO_COLOR
+	cmd.Env = append(os.Environ(), "NO_COLOR=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
@@ -1037,6 +1043,8 @@ func runShellLogged(script string) error {
 	logger.Debug("Executing shell script", zap.String("script", script))
 	fmt.Printf("$ sh -lc %q\n", script)
 	cmd := exec.Command("sh", "-lc", script)
+	// Ensure color is disabled for child processes that honor NO_COLOR
+	cmd.Env = append(os.Environ(), "NO_COLOR=1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
