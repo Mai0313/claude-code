@@ -5,8 +5,10 @@ import (
 	"io"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // View types
@@ -35,6 +37,7 @@ type Model struct {
 	List        list.Model
 	GAISFList   list.Model
 	TextInput   textinput.Model
+	Spinner     spinner.Model
 	CurrentView ViewType
 	Choice      string
 	Quitting    bool
@@ -108,6 +111,7 @@ type GAISFResult struct {
 // Dedicated GAISF configuration model
 type GAISFConfigModel struct {
 	TextInput textinput.Model
+	Spinner   spinner.Model
 	Config    *GAISFConfig
 	Result    *GAISFResult
 	Quitting  bool
@@ -120,13 +124,18 @@ func NewGAISFConfigModel() *GAISFConfigModel {
 	ti.CharLimit = 500
 	ti.Width = 60
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return &GAISFConfigModel{
 		TextInput: ti,
+		Spinner:   s,
 		Config:    NewGAISFConfig(),
 		Result:    &GAISFResult{},
 	}
 }
 
 func (m *GAISFConfigModel) Init() tea.Cmd {
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, m.Spinner.Tick)
 }

@@ -5,8 +5,10 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"claude_analysis/cmd/installer/internal/config"
 	"claude_analysis/cmd/installer/internal/install"
@@ -71,6 +73,11 @@ func main() {
 	ti.CharLimit = 500
 	ti.Width = 60
 
+	// Create spinner for processing operations
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	// Create GAISF configuration menu items
 	gaisfItems := []list.Item{
 		ui.Item{
@@ -102,6 +109,7 @@ func main() {
 		List:        l,
 		GAISFList:   gl,
 		TextInput:   ti,
+		Spinner:     s,
 		CurrentView: ui.MainMenuView,
 		GAISFConfig: ui.NewGAISFConfig(),
 	}

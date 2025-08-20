@@ -13,21 +13,30 @@ import (
 
 // Update function for the TUI
 func (m Model) Init() tea.Cmd {
-	return nil
+	return m.Spinner.Tick
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	// Always update spinner
+	m.Spinner, cmd = m.Spinner.Update(msg)
+
 	switch m.CurrentView {
 	case MainMenuView:
-		return m.updateMainMenu(msg)
+		model, updateCmd := m.updateMainMenu(msg)
+		return model, tea.Batch(cmd, updateCmd)
 	case GAISFConfigView:
-		return m.updateGAISFConfig(msg)
+		model, updateCmd := m.updateGAISFConfig(msg)
+		return model, tea.Batch(cmd, updateCmd)
 	case InputView:
-		return m.updateInput(msg)
+		model, updateCmd := m.updateInput(msg)
+		return model, tea.Batch(cmd, updateCmd)
 	case OperationView:
-		return m.updateOperation(msg)
+		model, updateCmd := m.updateOperation(msg)
+		return model, tea.Batch(cmd, updateCmd)
 	default:
-		return m, nil
+		return m, cmd
 	}
 }
 
@@ -163,7 +172,7 @@ func (m Model) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.GAISFConfig.Stage = "processing"
 				m.TextInput.EchoMode = textinput.EchoNormal
 				m.CurrentView = OperationView
-				m.Operation = "🔐 Authenticating with GAISF..."
+				m.Operation = "Authenticating with GAISF..."
 				return m, m.processGaisfAuth()
 
 			case "token":
@@ -235,13 +244,13 @@ func (m Model) View() string {
 			return fmt.Sprintf(
 				"\n%s\n\n%s\n",
 				HeaderStyle.Render("🔑 GAISF API Authentication Setup"),
-				"🔐 Authenticating with GAISF...\n\n⏳ Please wait...",
+				fmt.Sprintf("%s Authenticating with GAISF...\n\nPlease wait...", m.Spinner.View()),
 			)
 		} else {
 			return fmt.Sprintf(
 				"\n%s\n\n%s\n",
 				HeaderStyle.Render("🔑 GAISF API Authentication Setup"),
-				"Processing GAISF configuration...",
+				fmt.Sprintf("%s Processing GAISF configuration...", m.Spinner.View()),
 			)
 		}
 
@@ -276,7 +285,7 @@ func (m Model) View() string {
 			}
 			statusMsg += "\n\nPress Enter to return to main menu..."
 		} else {
-			statusMsg += "\n\n⏳ Processing..."
+			statusMsg += fmt.Sprintf("\n\n%s Processing...", m.Spinner.View())
 		}
 		return fmt.Sprintf(
 			"\n%s\n\n%s\n",
@@ -355,6 +364,11 @@ func (m Model) processGaisfAuth() tea.Cmd {
 
 // GAISF Config Model Update functions
 func (m *GAISFConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	// Always update spinner
+	m.Spinner, cmd = m.Spinner.Update(msg)
+
 	switch msg := msg.(type) {
 	case GAISFAuthResult:
 		if msg.Error != nil {
@@ -365,16 +379,16 @@ func (m *GAISFConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.Result.Token = msg.Token
 			m.Quitting = true
-			return m, tea.Quit
+			return m, tea.Batch(cmd, tea.Quit)
 		}
-		return m, nil
+		return m, cmd
 
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
 			m.Quitting = true
 			m.Result.Skipped = true
-			return m, tea.Quit
+			return m, tea.Batch(cmd, tea.Quit)
 
 		case "1":
 			if m.Config.Stage == "choice" {
@@ -383,7 +397,7 @@ func (m *GAISFConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.TextInput.Placeholder = "Enter username"
 				m.TextInput.SetValue("")
 			}
-			return m, nil
+			return m, cmd
 
 		case "2":
 			if m.Config.Stage == "choice" {
@@ -394,22 +408,23 @@ func (m *GAISFConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.TextInput.EchoCharacter = '•'
 				m.TextInput.SetValue("")
 			}
-			return m, nil
+			return m, cmd
 
 		case "3":
 			if m.Config.Stage == "choice" {
 				m.Result.Skipped = true
 				m.Quitting = true
-				return m, tea.Quit
+				return m, tea.Batch(cmd, tea.Quit)
 			}
 
 		case "enter":
 			if m.Config.Stage == "choice" {
 				m.Result.Skipped = true
 				m.Quitting = true
-				return m, tea.Quit
+				return m, tea.Batch(cmd, tea.Quit)
 			}
-			return m.handleEnter()
+			model, enterCmd := m.handleEnter()
+			return model, tea.Batch(cmd, enterCmd)
 
 		case "esc":
 			if m.Config.Stage != "choice" {
@@ -417,13 +432,13 @@ func (m *GAISFConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.TextInput.EchoMode = textinput.EchoNormal
 				m.TextInput.SetValue("")
 			}
-			return m, nil
+			return m, cmd
 		}
 	}
 
-	var cmd tea.Cmd
-	m.TextInput, cmd = m.TextInput.Update(msg)
-	return m, cmd
+	var tiCmd tea.Cmd
+	m.TextInput, tiCmd = m.TextInput.Update(msg)
+	return m, tea.Batch(cmd, tiCmd)
 }
 
 func (m *GAISFConfigModel) handleEnter() (tea.Model, tea.Cmd) {
@@ -511,7 +526,7 @@ func (m *GAISFConfigModel) View() string {
 		content.WriteString("\n\nPress Enter to continue, Esc to go back")
 
 	case "processing":
-		content.WriteString("🔐 Authenticating with GAISF...\n\n⏳ Please wait...")
+		content.WriteString(fmt.Sprintf("%s Authenticating with GAISF...\n\nPlease wait...", m.Spinner.View()))
 	}
 
 	if m.Error != "" {
