@@ -336,11 +336,11 @@ func installNodeDarwin() error {
 	// Try Homebrew first
 	if isCommandAvailable("brew") {
 		// Try node@22 then fallback to node
-		if err := runCmdLogged("brew", "install", "node@22"); err == nil {
-			_ = runCmdLogged("brew", "link", "--overwrite", "--force", "node@22")
+		if err := runLoggedCmd("brew", "install", "node@22"); err == nil {
+			_ = runLoggedCmd("brew", "link", "--overwrite", "--force", "node@22")
 			return nil
 		}
-		if err := runCmdLogged("brew", "install", "node"); err == nil {
+		if err := runLoggedCmd("brew", "install", "node"); err == nil {
 			return nil
 		}
 	}
@@ -352,64 +352,37 @@ func installNodeDarwin() error {
 func installNodeLinux() error {
 	// Try common package managers
 	if isCommandAvailable("apt-get") {
-		_ = runCmdLogged("sudo", "apt-get", "update")
-		if err := runCmdLogged("sudo", "apt-get", "install", "-y", "nodejs", "npm"); err == nil {
+		_ = runLoggedCmd("sudo", "apt-get", "update")
+		if err := runLoggedCmd("sudo", "apt-get", "install", "-y", "nodejs", "npm"); err == nil {
 			return nil
 		}
 		// Try NodeSource for Node 22
 		if isCommandAvailable("curl") {
-			if err := runShellLogged("curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"); err == nil {
-				if err := runCmdLogged("sudo", "apt-get", "install", "-y", "nodejs"); err == nil {
+			if err := runLoggedShell("curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -"); err == nil {
+				if err := runLoggedCmd("sudo", "apt-get", "install", "-y", "nodejs"); err == nil {
 					return nil
 				}
 			}
 		}
 	}
 	if isCommandAvailable("dnf") {
-		_ = runCmdLogged("sudo", "dnf", "-y", "module", "enable", "nodejs:22")
-		if err := runCmdLogged("sudo", "dnf", "-y", "install", "nodejs"); err == nil {
+		_ = runLoggedCmd("sudo", "dnf", "-y", "module", "enable", "nodejs:22")
+		if err := runLoggedCmd("sudo", "dnf", "-y", "install", "nodejs"); err == nil {
 			return nil
 		}
 	}
 	if isCommandAvailable("yum") {
-		if err := runCmdLogged("sudo", "yum", "-y", "install", "nodejs", "npm"); err == nil {
+		if err := runLoggedCmd("sudo", "yum", "-y", "install", "nodejs", "npm"); err == nil {
 			return nil
 		}
 	}
 	if isCommandAvailable("pacman") {
-		if err := runCmdLogged("sudo", "pacman", "-Sy", "--noconfirm", "nodejs", "npm"); err == nil {
+		if err := runLoggedCmd("sudo", "pacman", "-Sy", "--noconfirm", "nodejs", "npm"); err == nil {
 			return nil
 		}
 	}
 	fmt.Println("Unable to install Node.js automatically on Linux. Please install Node.js LTS (v22) from https://nodejs.org/ and re-run this installer.")
 	return errors.New("node.js not installed")
-}
-
-func npmPath() string {
-	// Prefer npm next to node if node is found
-	if p, err := exec.LookPath("npm"); err == nil {
-		return p
-	}
-	// Windows-specific fallback to standard installation directory
-	if runtime.GOOS == "windows" {
-		// Prefer our managed install directory under user's home first
-		if dir, err := getNodeInstallDir(); err == nil {
-			candidate := filepath.Join(dir, "npm.cmd")
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate
-			}
-		}
-		// Fallback to legacy default location
-		legacy := filepath.Join(`C:\Program Files\nodejs`, "npm.cmd")
-		if _, err := os.Stat(legacy); err == nil {
-			return legacy
-		}
-		// Also check one-level deeper if extracted into a versioned folder under either base
-		if p := findWindowsNpmFallback(); p != "" {
-			return p
-		}
-	}
-	return "npm" // rely on PATH
 }
 
 // installNodeWindows downloads the specified Node.js zip, extracts it to Program Files, and sets user env vars.
@@ -770,6 +743,28 @@ func selectAvailableUrl() *Environment {
 	return selectedEnv
 }
 
+func npmPath() string {
+	// Prefer npm next to node if node is found
+	if p, err := exec.LookPath("npm"); err == nil {
+		return p
+	}
+	// Windows-specific fallback to standard installation directory
+	if runtime.GOOS == "windows" {
+		// Prefer our managed install directory under user's home first
+		if dir, err := getNodeInstallDir(); err == nil {
+			candidate := filepath.Join(dir, "npm.cmd")
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+		// Also check one-level deeper if extracted into a versioned folder under either base
+		if p := findWindowsNpmFallback(); p != "" {
+			return p
+		}
+	}
+	return "npm" // rely on PATH
+}
+
 func installClaudeCLI() error {
 	// Use the best working registry found by selectRegistryURL (mapping-based)
 	chosen := selectAvailableUrl()
@@ -782,7 +777,7 @@ func installClaudeCLI() error {
 		fmt.Println("Installing @anthropic-ai/claude-code via default registry...")
 	}
 
-	if err := runCmdLogged(npmPath(), args...); err != nil {
+	if err := runLoggedCmd(npmPath(), args...); err != nil {
 		return fmt.Errorf("npm install failed: %w", err)
 	}
 
@@ -796,7 +791,7 @@ func installClaudeCLI() error {
 
 func verifyClaudeInstalled() error {
 	if path, ok := findClaudeBinary(); ok {
-		return runCmdLogged(path, "--version")
+		return runLoggedCmd(path, "--version")
 	}
 	return errors.New("claude CLI not found after installation")
 }
@@ -926,7 +921,7 @@ func writeSettingsJSON(installedBinaryPath string) error {
 		fmt.Println("Found existing settings, merging configurations...")
 		settings = *existingSettings
 	}
-	ensureSettingsDefaults(&settings, hookPath, chosen.MLOPBaseURL, "")
+	ensureDefaultSettings(&settings, hookPath, chosen.MLOPBaseURL, "")
 
 	// Add custom headers if GAISF token was obtained
 	if apiKeyHeader != "" {
@@ -949,9 +944,9 @@ func writeSettingsJSON(installedBinaryPath string) error {
 	return nil
 }
 
-// ensureSettingsDefaults applies unified defaults and required structure to settings.
+// ensureDefaultSettings applies unified defaults and required structure to settings.
 // It is idempotent and can be called whether settings was empty or loaded from disk.
-func ensureSettingsDefaults(settings *Settings, hookPath, baseURL, customHeader string) {
+func ensureDefaultSettings(settings *Settings, hookPath, baseURL, customHeader string) {
 	if settings.Env == nil {
 		settings.Env = make(map[string]string)
 	}
@@ -966,7 +961,7 @@ func ensureSettingsDefaults(settings *Settings, hookPath, baseURL, customHeader 
 	settings.Hooks["Stop"] = []Hook{{Matcher: "*", Hooks: []Hook{{Type: "command", Command: hookPath}}}}
 }
 
-func runCmdLogged(name string, args ...string) error {
+func runLoggedCmd(name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	// Ensure color is disabled for child processes that honor NO_COLOR
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
@@ -979,7 +974,7 @@ func runCmdLogged(name string, args ...string) error {
 	return err
 }
 
-func runShellLogged(script string) error {
+func runLoggedShell(script string) error {
 	cmd := exec.Command("sh", "-lc", script)
 	// Ensure color is disabled for child processes that honor NO_COLOR
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
