@@ -84,28 +84,35 @@ chmod +x ./installer  # 給予執行權限（如需要）
 
 安裝程式啟動後，您會看到主選單：
 
-1. **開始安裝**：按下 Enter 鍵或輸入 `1` 並按 Enter
+1. **開始安裝**：按下 Enter 鍵 或 選擇需要的功能
 
 ![安裝程式主選單](images/installer_menu1.png)
 
 > ⏳ **請耐心等候**：此步驟包含 Node.js v22 和 Claude Code CLI 的下載與安裝，可能需要幾分鐘時間。
+
+完成後你會看到這個畫面引導你進行下一步
+
+![安裝完成](images/after_installed.png)
 
 ### 步驟 5：API Key 設定
 
 安裝完成後，您可以選擇 API Key 的設定方式：
 
 #### 選項 1：自動設定 GAISF Token（推薦）
-- 輸入您的 MediaTek 帳號和密碼
+
+- 根據引導輸入您的 MediaTek 帳號和密碼
 - 系統會自動取得並設定 GAISF Token
 
 ![GAISF 設定](images/setup_gaisf.png)
 
 #### 選項 2：手動輸入 GAISF Token
+
 - 如果您已經有 GAISF Token，可直接貼上到輸入框中
 
 ![貼上 GAISF Token](images/paste_gaisf_token.png)
 
 #### 選項 3：跳過設定（進階使用者）
+
 - 稍後手動編輯設定檔案來設定 API Key
 
 ![跳過設定](images/skip_setup.png)
