@@ -420,7 +420,7 @@ func npmPath() string {
 	// Windows-specific fallback to standard installation directory
 	if runtime.GOOS == "windows" {
 		// Prefer our managed install directory under user's home first
-		if dir, err := windowsNodeInstallDir(); err == nil {
+		if dir, err := getNodeInstallDir(); err == nil {
 			candidate := filepath.Join(dir, "npm.cmd")
 			if _, err := os.Stat(candidate); err == nil {
 				return candidate
@@ -443,7 +443,7 @@ func npmPath() string {
 func installNodeWindows() error {
 	const nodeZipName = "node-v22.18.0-win-x64.zip"
 	// Install under user's home to avoid requiring Administrator
-	targetDir, derr := windowsNodeInstallDir()
+	targetDir, derr := getNodeInstallDir()
 	if derr != nil {
 		return derr
 	}
@@ -612,7 +612,7 @@ func copyDir(src, dst string) error {
 
 func findWindowsNpmFallback() string {
 	var bases []string
-	if dir, err := windowsNodeInstallDir(); err == nil {
+	if dir, err := getNodeInstallDir(); err == nil {
 		bases = append(bases, dir)
 	}
 	bases = append(bases, `C:\Program Files\nodejs`)
@@ -690,9 +690,9 @@ func addToPath(pathVar, dir string) string {
 	return pathVar + sep + dir
 }
 
-// windowsNodeInstallDir returns the managed Node.js install directory under the current user's home.
+// getNodeInstallDir returns the managed Node.js install directory under the current user's home.
 // Example: %USERPROFILE%\.claude\nodejs
-func windowsNodeInstallDir() (string, error) {
+func getNodeInstallDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("unable to resolve user home directory: %w", err)
