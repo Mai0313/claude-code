@@ -32,12 +32,8 @@ func InstallClaudeAnalysisBinary() error {
 		return fmt.Errorf("expected %s next to installer: %w", srcName, err)
 	}
 
-	// Destination filename includes platform suffix
-	platformSuffix := platform.PlatformSuffix()
-	destName := "claude_analysis-" + platformSuffix
-	if srcName != "claude_analysis" { // if source already has .exe extension
-		destName += ".exe"
-	}
+	// Destination filename uses the same simple naming convention
+	destName := platform.ExeName("claude_analysis")
 	destPath := filepath.Join(targetDir, destName)
 
 	// Copy the binary to destination and keep the original

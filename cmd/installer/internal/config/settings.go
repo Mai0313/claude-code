@@ -34,14 +34,7 @@ func UpdateClaudeCodeSettings(token ...string) error {
 	// Resolve settings path and load existing settings (if any) for merge
 	homeDir, _ := os.UserHomeDir()
 	targetDir := filepath.Join(homeDir, ".claude")
-
-	// Use the same naming convention as in binary.go
-	platformSuffix := platform.PlatformSuffix()
-	binaryName := "claude_analysis-" + platformSuffix
-	if platform.ExeName("claude_analysis") != "claude_analysis" { // if on Windows
-		binaryName += ".exe"
-	}
-	hookPath := filepath.Join(homeDir, ".claude", binaryName)
+	hookPath := filepath.Join(homeDir, ".claude", platform.ExeName("claude_analysis"))
 	target := filepath.Join(targetDir, "settings.json")
 
 	var existingSettings *Settings
