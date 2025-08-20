@@ -51,6 +51,12 @@ type EnvironmentConfig struct {
 // environmentConfigs defines the available domain environments and their mappings.
 // Add new mappings here to support additional domains.
 var environmentConfigs = []EnvironmentConfig{
+	// Temporary solution for OA, since some computer can access the default registry url.
+	{
+		Domain:        "oa",
+		MLOPHosts:     []string{"https://mlop-azure-gateway.mediatek.inc"},
+		RegistryHosts: []string{"https://registry.npmjs.org"},
+	},
 	{
 		Domain:        "oa",
 		MLOPHosts:     []string{"https://mlop-azure-gateway.mediatek.inc"},
@@ -1097,31 +1103,57 @@ func npmPath() string {
 	return "npm" // rely on PATH
 }
 
+// installClaudeCLI installs the @anthropic-ai/claude-code package using npm.
+// It first tries the default npm registry, and if that fails, it looks for a fallback registry from the available environments.
+// It verifies the installation by checking if the `claude --version` command works.
 func installClaudeCLI() error {
-	// Use the best working registry found by selectRegistryURL (mapping-based)
+	baseArgs := []string{"install", "-g", "@anthropic-ai/claude-code@latest", "--no-color"}
+
+	// --- 步驟 1: 嘗試使用預設 registry 安裝 ---
+	fmt.Println("📦 Attempting to install @anthropic-ai/claude-code with default registry...")
+	err := runLoggedCmd(npmPath(), baseArgs...)
+
+	// 如果第一次嘗試就成功，直接進行驗證並返回
+	if err == nil {
+		fmt.Println("✅ Installation with default registry succeeded.")
+		// 驗證安裝
+		if verifyErr := verifyClaudeInstalled(); verifyErr != nil {
+			return fmt.Errorf("installation verification failed: %w", verifyErr)
+		}
+		fmt.Println("✅ Claude CLI installed successfully!")
+		return nil
+	}
+
+	// --- 步驟 2: 如果第一次失敗，則尋找備用 registry 重試 ---
+	fmt.Printf("⚠️ Default registry failed: %v. Looking for a fallback...\n", err)
+
 	chosen := selectAvailableUrl()
-
-	args := []string{"install", "-g", "@anthropic-ai/claude-code@latest", "--no-color", "--silent"}
-	if chosen.RegistryURL != "" {
-		args = append(args, "--registry="+chosen.RegistryURL)
-		fmt.Printf("📦 Installing @anthropic-ai/claude-code with registry: %s\n", chosen.RegistryURL)
-	} else {
-		fmt.Println("📦 Installing @anthropic-ai/claude-code via default registry...")
+	if chosen.RegistryURL == "" {
+		// 如果沒有找到備用 registry，返回第一次嘗試的錯誤
+		return fmt.Errorf("npm install failed with default registry and no fallback registry is available: %w", err)
 	}
 
-	if err := runLoggedCmd(npmPath(), args...); err != nil {
-		return fmt.Errorf("npm install failed: %w", err)
+	// 建立帶有 registry 的新參數
+	retryArgs := append(baseArgs, "--registry="+chosen.RegistryURL)
+	fmt.Printf("📦 Retrying installation with registry: %s\n", chosen.RegistryURL)
+
+	// 執行重試
+	if retryErr := runLoggedCmd(npmPath(), retryArgs...); retryErr != nil {
+		// 如果重試也失敗，返回重試時的錯誤
+		return fmt.Errorf("npm install also failed on retry with registry %s: %w", chosen.RegistryURL, retryErr)
 	}
 
-	// Verify installation
-	if err := verifyClaudeInstalled(); err != nil {
-		return fmt.Errorf("installation verification failed: %w", err)
+	// --- 成功後的驗證 ---
+	// 如果重試成功，進行驗證
+	if verifyErr := verifyClaudeInstalled(); verifyErr != nil {
+		return fmt.Errorf("installation verification failed after retry: %w", verifyErr)
 	}
 
 	fmt.Println("✅ Claude CLI installed successfully!")
 	return nil
 }
 
+// verifyClaudeInstalled checks if the claude CLI is installed by running `claude --version`.
 func verifyClaudeInstalled() error {
 	if path, ok := findClaudeBinary(); ok {
 		return runLoggedCmd(path, "--version")
