@@ -1,5 +1,7 @@
 # Makefile for post_hook Go application
 
+GO ?= go
+
 # Build directory
 BUILD_DIR := build
 BIN_NAME := claude_analysis
@@ -9,50 +11,58 @@ NODE_WIN_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ZIP)
 NODE_WIN_ARM64_ZIP := node-v22.18.0-win-arm64.zip
 NODE_WIN_ARM64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ARM64_ZIP)
 
-# Default target
-.PHONY: all
-all: package-all
+# Automatically find all command directories
+CMDS := $(notdir $(wildcard cmd/*))
 
-# Build the application
-.PHONY: build
-build:
+.PHONY: all
+all: $(CMDS) ## Build all commands.
+
+help: # Show this help message
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+$(CMDS):
 	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BIN_NAME) ./cmd/claude_analysis
-	go build -o $(BUILD_DIR)/$(INSTALLER_NAME) ./cmd/installer
+	CGO_ENABLED=0 $(GO) build -v -tags '$(TAGS)' -ldflags '$(EXTLDFLAGS)-s -w $(LDFLAGS)' -o $(BUILD_DIR)/$@ ./cmd/$@
+	@echo "\033[32mSuccessfully built target: $@\033[0m"
 
 # Build for multiple platforms
 .PHONY: build-all build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
-build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
+build-all: ## Build for multiple platforms (Linux, Windows, macOS)
+	build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
 
 build_linux_amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 ./cmd/claude_analysis
-	GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 ./cmd/installer
+	GOOS=linux GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 ./cmd/claude_analysis
+	GOOS=linux GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 ./cmd/installer
 
 build_linux_arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 ./cmd/claude_analysis
-	GOOS=linux GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 ./cmd/installer
+	GOOS=linux GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 ./cmd/claude_analysis
+	GOOS=linux GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 ./cmd/installer
 
 build_windows_amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
-	GOOS=windows GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe ./cmd/installer
+	GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
+	GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe ./cmd/installer
 
 build_windows_arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-windows-arm64.exe ./cmd/claude_analysis
-	GOOS=windows GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe ./cmd/installer
+	GOOS=windows GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-windows-arm64.exe ./cmd/claude_analysis
+	GOOS=windows GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe ./cmd/installer
 
 build_darwin_amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
-	GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 ./cmd/installer
+	GOOS=darwin GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
+	GOOS=darwin GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 ./cmd/installer
 
 build_darwin_arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 ./cmd/claude_analysis
-	GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 ./cmd/installer
+	GOOS=darwin GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 ./cmd/claude_analysis
+	GOOS=darwin GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 ./cmd/installer
 
 # Packaging to Claude-Code-Installer-{platform}.zip
 .PHONY: package-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_windows_arm64 package_darwin_amd64 package_darwin_arm64
@@ -108,42 +118,32 @@ package_darwin_arm64: build_darwin_arm64
 
 # Clean build artifacts
 .PHONY: clean
-clean:
+clean: ## Remove build artifacts
 	rm -rf $(BUILD_DIR)
 
 # Run the application (for testing)
 .PHONY: run
-run: build
+run: ## Build and run the application
+	run: build
 	./$(BUILD_DIR)/$(BIN_NAME)
 
 # Install to system (optional)
 .PHONY: install
-install: build
+install: ## Install binary to /usr/local/bin
+	install: build
 	sudo cp $(BUILD_DIR)/$(BIN_NAME) /usr/local/bin/$(BIN_NAME)
 
 # Format code
 .PHONY: fmt
-fmt:
-	go fmt ./...
+fmt: ## Format Go code
+	$(GO) fmt ./...
 
 # Test (if you add tests later)
 .PHONY: test
-test:
-	go test -cover -v ./...
+test: ## Run tests
+	$(GO) test -cover -v ./...
 
 .PHONY: test-verbose
-test-verbose:
-	go test -cover -v ./tests -run TestParser_FromTestConversationJSONL_PrintsFullPayload -count=1
+test-verbose: ## Run verbose tests
+	$(GO) test -cover -v ./tests -run TestParser_FromTestConversationJSONL_PrintsFullPayload -count=1
 
-# Show help
-.PHONY: help
-help:
-	@echo "Available commands:"
-	@echo "  build     - Build the application for current platform"
-	@echo "  build-all - Build for multiple platforms (Linux, Windows, macOS)"
-	@echo "  clean     - Remove build artifacts"
-	@echo "  run       - Build and run the application"
-	@echo "  install   - Install binary to /usr/local/bin"
-	@echo "  fmt       - Format Go code"
-	@echo "  test      - Run tests"
-	@echo "  help      - Show this help message"
