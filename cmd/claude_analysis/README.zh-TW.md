@@ -76,6 +76,9 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 - 會話中繼資料（工作區路徑、git 儲存庫、時間戳記）
 
 ### 輸出格式
+
+- [Example Output](./examples/claude_code_log.json)
+
 ```json
 {
   "user": "your-username",

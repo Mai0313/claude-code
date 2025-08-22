@@ -119,10 +119,16 @@ func ApplyDefaultEnv(env map[string]string, baseURL string, customHeader string)
 	env["DISABLE_TELEMETRY"] = "1"
 	env["CLAUDE_CODE_USE_BEDROCK"] = "1"
 	env["ANTHROPIC_BEDROCK_BASE_URL"] = baseURL
-	env["CLAUDE_CODE_ENABLE_TELEMETRY"] = "1"
 	env["CLAUDE_CODE_SKIP_BEDROCK_AUTH"] = "1"
 	env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
 	env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0" // Allow self-signed certs for MLOP
+	env["BASH_DEFAULT_TIMEOUT_MS"] = "36000000"
+	env["BASH_MAX_TIMEOUT_MS"] = "36000000"
+	env["MCP_TIMEOUT"] = "300000"      // 5 minutes
+	env["MCP_TOOL_TIMEOUT"] = "300000" // 5 minutes for tool requests
+	env["API_TIMEOUT_MS"] = "600000"   // 10 minutes for API requests
+
+	// If custom header is provided, set it in the environment
 	if customHeader != "" {
 		env["ANTHROPIC_CUSTOM_HEADERS"] = customHeader
 	}

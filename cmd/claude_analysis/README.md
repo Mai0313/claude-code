@@ -76,6 +76,9 @@ The tool analyzes and reports:
 - Session metadata (workspace path, git repository, timestamps)
 
 ### Output Format
+
+- [Example Output](./examples/claude_code_log.json)
+
 ```json
 {
   "user": "your-username",

@@ -224,11 +224,15 @@ chmod +x ./installer  # 给予执行权限（如需要）
       "ANTHROPIC_BEDROCK_BASE_URL": "https://mlop-azure-gateway.mediatek.inc",
       "ANTHROPIC_CUSTOM_HEADERS": "api-key: <<gaisf_token>>",
       "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-      "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
       "CLAUDE_CODE_SKIP_BEDROCK_AUTH": "1",
       "CLAUDE_CODE_USE_BEDROCK": "1",
       "DISABLE_TELEMETRY": "1",
-      "NODE_TLS_REJECT_UNAUTHORIZED": "0"
+      "NODE_TLS_REJECT_UNAUTHORIZED": "0",
+      "BASH_DEFAULT_TIMEOUT_MS": "36000000",
+      "BASH_MAX_TIMEOUT_MS": "36000000",
+      "MCP_TIMEOUT": "300000",
+      "MCP_TOOL_TIMEOUT": "36000000",
+      "API_TIMEOUT_MS": "600000"
    },
    "includeCoAuthoredBy": true,
    "enableAllProjectMcpServers": true,

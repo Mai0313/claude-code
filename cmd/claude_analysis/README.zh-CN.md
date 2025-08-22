@@ -76,6 +76,9 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 - 会话元数据（工作区路径、git 仓库、时间戳）
 
 ### 输出格式
+
+- [Example Output](./examples/claude_code_log.json)
+
 ```json
 {
   "user": "your-username",
