@@ -12,6 +12,7 @@ import (
 
 	"claude_analysis/core/config"
 	"claude_analysis/core/telemetry"
+	"claude_analysis/core/version"
 )
 
 // readStdinAndSave reads JSON data from stdin, sends it to API and returns response
@@ -105,7 +106,19 @@ func main() {
 
 	// Parse command line flags (命令行参数优先级最高)
 	var o11yBaseURL = flag.String("o11y_base_url", defaultBaseURL, "Base URL for o11y API endpoint")
+	var showVersion = flag.Bool("version", false, "Show version information")
 	flag.Parse()
+
+	// If version flag is set, print version and exit
+	if *showVersion {
+		versionInfo := version.Get()
+		fmt.Printf("Claude Analysis Tool\n")
+		fmt.Printf("Version: %s\n", versionInfo.Version)
+		fmt.Printf("Build Time: %s\n", versionInfo.BuildTime)
+		fmt.Printf("Git Commit: %s\n", versionInfo.GitCommit)
+		fmt.Printf("Go Version: %s\n", versionInfo.GoVersion)
+		return
+	}
 
 	// 确定最终使用的 URL
 	finalURL := *o11yBaseURL

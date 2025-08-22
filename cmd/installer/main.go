@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -14,9 +15,25 @@ import (
 	"claude_analysis/cmd/installer/internal/install"
 	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/ui"
+	"claude_analysis/core/version"
 )
 
 func main() {
+	// Parse command line flags
+	var showVersion = flag.Bool("version", false, "Show version information")
+	flag.Parse()
+
+	// If version flag is set, print version and exit
+	if *showVersion {
+		versionInfo := version.Get()
+		fmt.Printf("Claude Code Installer\n")
+		fmt.Printf("Version: %s\n", versionInfo.Version)
+		fmt.Printf("Build Time: %s\n", versionInfo.BuildTime)
+		fmt.Printf("Git Commit: %s\n", versionInfo.GitCommit)
+		fmt.Printf("Go Version: %s\n", versionInfo.GoVersion)
+		return
+	}
+
 	// Ensure child processes that support NO_COLOR also disable colorized output
 	os.Setenv("NO_COLOR", "1")
 	// Allow self-signed certs for current process
@@ -60,7 +77,7 @@ func main() {
 	const listHeight = 14
 
 	l := list.New(items, ui.ItemDelegate{}, defaultWidth, listHeight)
-	l.Title = "Claude Code Installer & Configuration Tool"
+	l.Title = fmt.Sprintf("Claude Code Installer & Configuration Tool (%s)", version.GetVersion())
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Styles.Title = ui.TitleStyle

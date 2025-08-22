@@ -5,6 +5,8 @@ import (
 	"os/user"
 	"time"
 
+	"claude_analysis/core/version"
+
 	"github.com/denisbrodbeck/machineid"
 )
 
@@ -47,7 +49,7 @@ func Default() *Config {
 		UserName:        userName,
 		ExtensionName:   "Claude-Code",
 		MachineID:       machineID,
-		InsightsVersion: "0.0.1",
+		InsightsVersion: version.GetVersion(),
 		Mode:            mode,
 	}
 }

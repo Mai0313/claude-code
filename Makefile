@@ -2,6 +2,17 @@
 
 GO ?= go
 
+# Version variables
+VERSION_RAW := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+VERSION := $(shell echo $(VERSION_RAW) | sed 's/^v//')
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
+# Build flags
+LDFLAGS := -X claude_analysis/core/version.Version=$(VERSION) \
+           -X claude_analysis/core/version.BuildTime=$(BUILD_TIME) \
+           -X claude_analysis/core/version.GitCommit=$(GIT_COMMIT)
+
 # Build directory
 BUILD_DIR := build
 BIN_NAME := claude_analysis
@@ -25,6 +36,20 @@ CMDS := $(notdir $(wildcard cmd/*))
 .PHONY: all
 all: $(CMDS) ## Build all commands.
 
+.PHONY: version
+version: ## Show version information
+	@echo "Version: $(VERSION)"
+	@echo "Build Time: $(BUILD_TIME)"
+	@echo "Git Commit: $(GIT_COMMIT)"
+
+.PHONY: test-version
+test-version: claude_analysis installer ## Build and test version display for both programs
+	@echo "Testing claude_analysis version:"
+	@./build/claude_analysis -version
+	@echo ""
+	@echo "Testing installer version:"
+	@./build/installer -version
+
 help: # Show this help message
 	@echo "Usage: make [target]"
 	@echo ""
@@ -35,7 +60,7 @@ help: # Show this help message
 $(CMDS):
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 $(GO) build -v -tags '$(TAGS)' -ldflags '$(EXTLDFLAGS)-s -w $(LDFLAGS)' -o $(BUILD_DIR)/$@ ./cmd/$@
-	@echo "\033[32mSuccessfully built target: $@\033[0m"
+	@echo "\033[32mSuccessfully built target: $@ (version: $(VERSION))\033[0m"
 
 # Build for multiple platforms
 .PHONY: build-all build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
@@ -43,33 +68,33 @@ build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows
 
 build_linux_amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 ./cmd/claude_analysis
-	GOOS=linux GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 ./cmd/installer
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 ./cmd/claude_analysis
+	GOOS=linux GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 ./cmd/installer
 
 build_linux_arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 ./cmd/claude_analysis
-	GOOS=linux GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 ./cmd/installer
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 ./cmd/claude_analysis
+	GOOS=linux GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 ./cmd/installer
 
 build_windows_amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
-	GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe ./cmd/installer
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BIN_NAME)-windows-amd64.exe ./cmd/claude_analysis
+	GOOS=windows GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-amd64.exe ./cmd/installer
 
 build_windows_arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=windows GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-windows-arm64.exe ./cmd/claude_analysis
-	GOOS=windows GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe ./cmd/installer
+	GOOS=windows GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BIN_NAME)-windows-arm64.exe ./cmd/claude_analysis
+	GOOS=windows GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(INSTALLER_NAME)-windows-arm64.exe ./cmd/installer
 
 build_darwin_amd64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
-	GOOS=darwin GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 ./cmd/installer
+	GOOS=darwin GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 ./cmd/claude_analysis
+	GOOS=darwin GOARCH=amd64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 ./cmd/installer
 
 build_darwin_arm64:
 	@mkdir -p $(BUILD_DIR)
-	GOOS=darwin GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 ./cmd/claude_analysis
-	GOOS=darwin GOARCH=arm64 $(GO) build -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 ./cmd/installer
+	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 ./cmd/claude_analysis
+	GOOS=darwin GOARCH=arm64 $(GO) build -ldflags "$(LDFLAGS) -s -w" -o $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 ./cmd/installer
 
 # Packaging to Claude-Code-Installer-{platform}.zip
 .PHONY: package-all package_linux_amd64 package_linux_arm64 package_windows_amd64 package_windows_arm64 package_darwin_amd64 package_darwin_arm64
