@@ -10,6 +10,14 @@ NODE_WIN_ZIP := node-v22.18.0-win-x64.zip
 NODE_WIN_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ZIP)
 NODE_WIN_ARM64_ZIP := node-v22.18.0-win-arm64.zip
 NODE_WIN_ARM64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_WIN_ARM64_ZIP)
+NODE_LINUX_AMD64_TXZ := node-v22.18.0-linux-x64.tar.xz
+NODE_LINUX_AMD64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_LINUX_AMD64_TXZ)
+NODE_LINUX_ARM64_TXZ := node-v22.18.0-linux-arm64.tar.xz
+NODE_LINUX_ARM64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_LINUX_ARM64_TXZ)
+NODE_DARWIN_AMD64_TGZ := node-v22.18.0-darwin-x64.tar.gz
+NODE_DARWIN_AMD64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_DARWIN_AMD64_TGZ)
+NODE_DARWIN_ARM64_TGZ := node-v22.18.0-darwin-arm64.tar.gz
+NODE_DARWIN_ARM64_URL := https://nodejs.org/dist/v22.18.0/$(NODE_DARWIN_ARM64_TGZ)
 
 # Automatically find all command directories
 CMDS := $(notdir $(wildcard cmd/*))
@@ -31,8 +39,7 @@ $(CMDS):
 
 # Build for multiple platforms
 .PHONY: build-all build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
-build-all: ## Build for multiple platforms (Linux, Windows, macOS)
-	build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
+build-all: build_linux_amd64 build_linux_arm64 build_windows_amd64 build_windows_arm64 build_darwin_amd64 build_darwin_arm64
 
 build_linux_amd64:
 	@mkdir -p $(BUILD_DIR)
@@ -71,15 +78,21 @@ package-all: build-all package_linux_amd64 package_linux_arm64 package_windows_a
 package_linux_amd64: build_linux_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-amd64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64 $(BUILD_DIR)/installer
+	@mkdir -p $(BUILD_DIR)
+	@echo "Downloading $(NODE_LINUX_AMD64_TXZ) ..."
+	@curl -fSL -o $(BUILD_DIR)/$(NODE_LINUX_AMD64_TXZ) $(NODE_LINUX_AMD64_URL) --silent
 	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
-	  zip -q -9 -r "Claude-Code-Installer-linux-amd64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
+	  zip -q -9 -r "Claude-Code-Installer-linux-amd64.zip" claude_analysis installer $(NODE_LINUX_AMD64_TXZ) README*.md images && rm -f claude_analysis installer README*.md $(NODE_LINUX_AMD64_TXZ) && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-linux-amd64
 
 package_linux_arm64: build_linux_arm64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-linux-arm64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64 $(BUILD_DIR)/installer
+	@mkdir -p $(BUILD_DIR)
+	@echo "Downloading $(NODE_LINUX_ARM64_TXZ) ..."
+	@curl -fSL -o $(BUILD_DIR)/$(NODE_LINUX_ARM64_TXZ) $(NODE_LINUX_ARM64_URL) --silent
 	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
-	  zip -q -9 -r "Claude-Code-Installer-linux-arm64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
+	  zip -q -9 -r "Claude-Code-Installer-linux-arm64.zip" claude_analysis installer $(NODE_LINUX_ARM64_TXZ) README*.md images && rm -f claude_analysis installer README*.md $(NODE_LINUX_ARM64_TXZ) && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-linux-arm64
 
 package_windows_amd64: build_windows_amd64
@@ -105,15 +118,21 @@ package_windows_arm64: build_windows_arm64
 package_darwin_amd64: build_darwin_amd64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-amd64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64 $(BUILD_DIR)/installer
+	@mkdir -p $(BUILD_DIR)
+	@echo "Downloading $(NODE_DARWIN_AMD64_TGZ) ..."
+	@curl -fSL -o $(BUILD_DIR)/$(NODE_DARWIN_AMD64_TGZ) $(NODE_DARWIN_AMD64_URL) --silent
 	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
-	  zip -q -9 -r "Claude-Code-Installer-darwin-amd64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
+	  zip -q -9 -r "Claude-Code-Installer-darwin-amd64.zip" claude_analysis installer $(NODE_DARWIN_AMD64_TGZ) README*.md images && rm -f claude_analysis installer README*.md $(NODE_DARWIN_AMD64_TGZ) && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-amd64
 
 package_darwin_arm64: build_darwin_arm64
 	@cp $(BUILD_DIR)/$(BIN_NAME)-darwin-arm64 $(BUILD_DIR)/claude_analysis
 	@cp $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64 $(BUILD_DIR)/installer
+	@mkdir -p $(BUILD_DIR)
+	@echo "Downloading $(NODE_DARWIN_ARM64_TGZ) ..."
+	@curl -fSL -o $(BUILD_DIR)/$(NODE_DARWIN_ARM64_TGZ) $(NODE_DARWIN_ARM64_URL) --silent
 	@cd $(BUILD_DIR) && cp ../README*.md . && cp -r ../images . && \
-	  zip -q -9 -r "Claude-Code-Installer-darwin-arm64.zip" claude_analysis installer README*.md images && rm -f claude_analysis installer README*.md && rm -rf images
+	  zip -q -9 -r "Claude-Code-Installer-darwin-arm64.zip" claude_analysis installer $(NODE_DARWIN_ARM64_TGZ) README*.md images && rm -f claude_analysis installer README*.md $(NODE_DARWIN_ARM64_TGZ) && rm -rf images
 	@rm -f $(BUILD_DIR)/$(INSTALLER_NAME)-darwin-arm64
 
 # Clean build artifacts
@@ -146,4 +165,3 @@ test: ## Run tests
 .PHONY: test-verbose
 test-verbose: ## Run verbose tests
 	$(GO) test -cover -v ./tests -run TestParser_FromTestConversationJSONL_PrintsFullPayload -count=1
-

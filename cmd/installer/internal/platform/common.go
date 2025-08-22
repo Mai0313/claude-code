@@ -237,3 +237,26 @@ func findWindowsNpmFallback() string {
 	}
 	return ""
 }
+
+// addToPathUnix adds a directory to PATH for Unix-like systems
+func addToPathUnix(pathVar, dir string) string {
+	if dir == "" {
+		return pathVar
+	}
+	// Unix PATH uses ':' separator
+	sep := ":"
+	target := filepath.Clean(dir)
+	var parts []string
+	if pathVar != "" {
+		parts = strings.Split(pathVar, sep)
+	}
+	for _, p := range parts {
+		if filepath.Clean(strings.TrimSpace(p)) == target {
+			return pathVar // already included
+		}
+	}
+	if pathVar == "" {
+		return dir
+	}
+	return dir + sep + pathVar // Prepend to PATH for priority
+}
