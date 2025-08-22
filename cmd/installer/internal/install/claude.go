@@ -3,20 +3,11 @@ package install
 import (
 	"errors"
 	"fmt"
-	"runtime"
 
 	"claude_analysis/cmd/installer/internal/env"
 	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/platform"
 )
-
-// GetNpmPath returns the npm executable path with platform-specific fallback
-func GetNpmPath() string {
-	if runtime.GOOS == "windows" {
-		return platform.GetWindowsNpmPath()
-	}
-	return platform.GetNpmPath()
-}
 
 // InstallOrUpdateClaude installs/updates Claude CLI
 func InstallOrUpdateClaude() error {
@@ -38,7 +29,7 @@ func installClaudeCLI() error {
 
 	// --- 步驟 1: 嘗試使用預設 registry 安裝 ---
 	logger.Info("📦 Attempting to install @anthropic-ai/claude-code with default registry...")
-	err := platform.RunLoggedCmd(GetNpmPath(), baseArgs...)
+	err := platform.RunLoggedCmd(platform.GetNpmPath(), baseArgs...)
 
 	// 如果第一次嘗試就成功，直接進行驗證並返回
 	if err == nil {
@@ -65,7 +56,7 @@ func installClaudeCLI() error {
 	logger.Info("📦 Retrying installation with fallback registry", fmt.Sprintf("Registry: %s", chosen.RegistryURL))
 
 	// 執行重試
-	if retryErr := platform.RunLoggedCmd(GetNpmPath(), retryArgs...); retryErr != nil {
+	if retryErr := platform.RunLoggedCmd(platform.GetNpmPath(), retryArgs...); retryErr != nil {
 		// 如果重試也失敗，返回重試時的錯誤
 		return fmt.Errorf("npm install also failed on retry with registry %s: %w", chosen.RegistryURL, retryErr)
 	}

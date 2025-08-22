@@ -234,12 +234,6 @@ func addToPath(pathVar, dir string) string {
 	return pathVar + sep + dir
 }
 
-// getNodeInstallDir returns the managed Node.js install directory under the current user's home.
-// Example: %USERPROFILE%\.claude\nodejs
-func GetNodeInstallDir() (string, error) {
-	return getNodeInstallDir()
-}
-
 // broadcastWindowsEnvChange notifies the system that environment variables changed.
 // This helps new processes see updated user env without requiring a full logoff.
 func broadcastWindowsEnvChange() error {
@@ -268,9 +262,4 @@ public static class NativeMethods {
 		}
 	}
 	return err
-}
-
-// GetWindowsNpmPath with Windows-specific fallback
-func GetWindowsNpmPath() string {
-	return GetNpmPath()
 }
