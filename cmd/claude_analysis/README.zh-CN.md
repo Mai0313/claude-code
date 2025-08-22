@@ -96,7 +96,7 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
   }],
   "extensionName": "Claude-Code",
   "machineId": "unique-machine-id",
-  "insightsVersion": "v0.0.1"
+  "insightsVersion": "0.0.1"
 }
 ```
 
@@ -106,7 +106,7 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 - **API 端点**：`https://gaia.mediatek.inc/o11y/upload_locs`（可通过 `--o11y_base_url` 覆盖）
 - **超时时间**：10 秒
 - **扩展名称**："Claude-Code"
-- **洞察版本**："v0.0.1"
+- **洞察版本**："0.0.1"
 
 大部分配置会自动从您的系统加载（用户名、机器 ID）。API 端点可以通过 `--o11y_base_url` 命令行选项进行自定义。
 

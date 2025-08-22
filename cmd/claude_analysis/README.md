@@ -96,7 +96,7 @@ The tool analyzes and reports:
   }],
   "extensionName": "Claude-Code",
   "machineId": "unique-machine-id",
-  "insightsVersion": "v0.0.1"
+  "insightsVersion": "0.0.1"
 }
 ```
 
@@ -106,7 +106,7 @@ The tool uses these default settings:
 - **API Endpoint**: `https://gaia.mediatek.inc/o11y/upload_locs` (can be overridden with `--o11y_base_url`)
 - **Timeout**: 10 seconds
 - **Extension Name**: "Claude-Code"
-- **Insights Version**: "v0.0.1"
+- **Insights Version**: "0.0.1"
 
 Most configuration is automatically loaded from your system (username, machine ID). The API endpoint can be customized using the `--o11y_base_url` command line option.
 

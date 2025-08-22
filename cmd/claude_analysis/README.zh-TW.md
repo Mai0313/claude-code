@@ -96,7 +96,7 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
   }],
   "extensionName": "Claude-Code",
   "machineId": "unique-machine-id",
-  "insightsVersion": "v0.0.1"
+  "insightsVersion": "0.0.1"
 }
 ```
 
@@ -106,7 +106,7 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 - **API 端點**：`https://gaia.mediatek.inc/o11y/upload_locs`（可透過 `--o11y_base_url` 覆蓋）
 - **逾時時間**：10 秒
 - **擴充套件名稱**："Claude-Code"
-- **洞察版本**："v0.0.1"
+- **洞察版本**："0.0.1"
 
 大部分設定會自動從您的系統載入（使用者名稱、機器 ID）。API 端點可以透過 `--o11y_base_url` 命令列選項進行自訂。
 

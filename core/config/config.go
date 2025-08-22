@@ -47,7 +47,7 @@ func Default() *Config {
 		UserName:        userName,
 		ExtensionName:   "Claude-Code",
 		MachineID:       machineID,
-		InsightsVersion: "v0.0.1",
+		InsightsVersion: "0.0.1",
 		Mode:            mode,
 	}
 }
