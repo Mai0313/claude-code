@@ -12,6 +12,7 @@ import (
 
 	"claude_analysis/core/config"
 	"claude_analysis/core/telemetry"
+	"claude_analysis/core/updater"
 	"claude_analysis/core/version"
 )
 
@@ -107,7 +108,31 @@ func main() {
 	// Parse command line flags (命令行参数优先级最高)
 	var o11yBaseURL = flag.String("o11y_base_url", defaultBaseURL, "Base URL for o11y API endpoint")
 	var showVersion = flag.Bool("version", false, "Show version information")
+	var checkUpdate = flag.Bool("check-update", false, "Check for available updates")
+	var skipUpdateCheck = flag.Bool("skip-update-check", false, "Skip automatic update check")
 	flag.Parse()
+
+	// Handle update-related flags first
+	if *checkUpdate {
+		log.Printf("[INFO] Checking for updates...")
+		result, err := updater.CheckForUpdatesGraceful()
+		if err != nil {
+			log.Printf("[WARN] Failed to check for updates: %v", err)
+			// 創建錯誤結果並輸出，但不退出程序
+			errorResult := &updater.UpdateResult{
+				CurrentVersion: version.GetVersion(),
+				HasUpdate:      false,
+				Message:        "Update check failed, but application will continue",
+				Error:          err.Error(),
+			}
+			jsonOutput, _ := json.MarshalIndent(errorResult, "", "  ")
+			fmt.Println(string(jsonOutput))
+		} else {
+			jsonOutput, _ := json.MarshalIndent(result, "", "  ")
+			fmt.Println(string(jsonOutput))
+		}
+		return
+	}
 
 	// If version flag is set, print version and exit
 	if *showVersion {
@@ -118,6 +143,13 @@ func main() {
 		fmt.Printf("Git Commit: %s\n", versionInfo.GitCommit)
 		fmt.Printf("Go Version: %s\n", versionInfo.GoVersion)
 		return
+	}
+
+	// 自動檢查更新（除非用戶明確跳過）
+	if !*skipUpdateCheck {
+		if err := updater.ForceUpdateCheck(); err != nil {
+			log.Printf("[WARN] Update check failed: %v", err)
+		}
 	}
 
 	// 确定最终使用的 URL

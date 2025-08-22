@@ -9,6 +9,58 @@ Claude Analysis automatically:
 2. **Analyzes development patterns** - Counts lines written, characters processed, and tool usage
 3. **Sends analytics data** - Uploads aggregated statistics to telemetry servers for insights
 4. **Generates usage reports** - Returns structured data about your development session
+5. **Checks for updates** - Automatically notifies you of new versions available
+
+## Auto-Update Features
+
+The tool includes built-in update checking to ensure you're always using the latest version:
+
+- **Automatic Check**: By default, checks for updates on every run
+- **Non-blocking**: Update failures won't prevent normal operation
+- **Graceful Fallback**: Continues working even if update servers are unavailable
+- **Manual Override**: Can be disabled with `--skip-update-check` flag
+
+### Update Commands
+
+| Command | Description |
+|---------|-------------|
+| `claude_analysis --check-update` | Check if a newer version is available |
+| `claude_analysis --skip-update-check` | Skip automatic update notification |
+| `claude_analysis --version` | Show current version information |
+
+### Update Examples
+
+```bash
+# Check for updates
+./claude_analysis --check-update
+
+# Example output:
+{
+  "has_update": true,
+  "current_version": "v0.2.3",
+  "latest_version": "v0.2.4",
+  "message": "New version available: v0.2.3 -> v0.2.4"
+}
+
+# Skip update check and run normally
+echo "{'transcript_path': '/path/to/file.jsonl'}" | ./claude_analysis --skip-update-check
+```
+
+### Configuration
+
+You can control update behavior using environment variables:
+
+```bash
+# Skip automatic update checks entirely
+export CLAUDE_SKIP_UPDATE_CHECK=true
+```
+
+### Manual Updates
+
+To update manually:
+1. Visit the [Release Page](https://gitea.mediatek.inc/IT-GAIA/claude-code/releases)
+2. Download the appropriate binary for your platform
+3. Replace the existing `claude_analysis` binary
 
 ## How it works
 
@@ -41,6 +93,9 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 
 ### Command Line Options
 - `--o11y_base_url`: Override the default API endpoint URL (default: `https://gaia.mediatek.inc/o11y/upload_locs`)
+- `--check-update`: Check for available updates and exit
+- `--skip-update-check`: Skip automatic update check on startup
+- `--version`: Show version information and exit
 
 ### Environment Variables
 - `MODE`: Set to `POST_TOOL` for direct JSON processing, or leave unset for STOP mode
