@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"os/user"
+	"strings"
 	"time"
 
 	"claude_analysis/core/version"
@@ -22,8 +23,10 @@ type Config struct {
 
 // APIConfig holds API-related configuration
 type APIConfig struct {
-	Endpoint string        `json:"endpoint"`
-	Timeout  time.Duration `json:"timeout"`
+	Endpoint        string        `json:"endpoint"`
+	Timeout         time.Duration `json:"timeout"`
+	SkipSSLVerify   bool          `json:"skip_ssl_verify"`
+	InsecureSkipTLS bool          `json:"insecure_skip_tls"` // Alias for SkipSSLVerify
 }
 
 // Default returns the default configuration
@@ -41,10 +44,21 @@ func Default() *Config {
 	// Load mode from environment or .env file
 	mode := loadModeFromEnv()
 
+	// 檢查環境變數以決定是否跳過 SSL 驗證
+	skipSSL := getEnvBool("SKIP_SSL_VERIFY", true) // 默認為 true（跳過驗證）
+	if !skipSSL {
+		// 也檢查其他常見的環境變數名稱
+		skipSSL = getEnvBool("INSECURE_SKIP_TLS", false) ||
+			getEnvBool("SSL_VERIFY_DISABLED", false) ||
+			getEnvBool("TLS_INSECURE", false)
+	}
+
 	return &Config{
 		API: APIConfig{
-			Endpoint: "https://gaia.mediatek.inc/o11y/upload_locs",
-			Timeout:  10 * time.Second,
+			Endpoint:        "https://gaia.mediatek.inc/o11y/upload_locs",
+			Timeout:         10 * time.Second,
+			SkipSSLVerify:   skipSSL,
+			InsecureSkipTLS: skipSSL, // 保持兩個值同步
 		},
 		UserName:        userName,
 		ExtensionName:   "Claude-Code",
@@ -118,4 +132,24 @@ func trimQuotes(s string) string {
 		}
 	}
 	return s
+}
+
+// getEnvBool 從環境變數獲取布林值，支持多種格式
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	// 將值轉換為小寫並檢查真值
+	lowerValue := strings.ToLower(strings.TrimSpace(value))
+	switch lowerValue {
+	case "true", "1", "yes", "on", "enable", "enabled":
+		return true
+	case "false", "0", "no", "off", "disable", "disabled":
+		return false
+	default:
+		// 如果無法解析，使用默認值
+		return defaultValue
+	}
 }

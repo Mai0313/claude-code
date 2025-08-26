@@ -57,7 +57,7 @@ func checkURLReachability(url string, timeout time.Duration) error {
 		Timeout: timeout,
 		Transport: &http.Transport{
 			DisableKeepAlives: true,
-			TLSClientConfig:   &tls.Config{InsecureSkipVerify: false},
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
 		},
 	}
 

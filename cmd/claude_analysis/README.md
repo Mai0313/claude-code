@@ -99,7 +99,29 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 
 ### Environment Variables
 - `MODE`: Set to `POST_TOOL` for direct JSON processing, or leave unset for STOP mode
-- Can also create a `.env` file in the working directory with `MODE=POST_TOOL`
+- `SKIP_SSL_VERIFY`: Control SSL certificate verification (default: `true` - SSL verification is disabled)
+- `O11Y_BASE_URL`: Override the default API endpoint URL
+- Alternative SSL environment variables: `INSECURE_SKIP_TLS`, `SSL_VERIFY_DISABLED`, `TLS_INSECURE`
+- Can also create a `.env` file in the working directory with these settings
+
+### SSL Configuration
+
+By default, SSL certificate verification is **disabled** for compatibility with internal corporate APIs and development environments. You can control this behavior:
+
+```bash
+# Enable SSL verification (default is disabled)
+export SKIP_SSL_VERIFY=false
+
+# Disable SSL verification (this is the default)
+export SKIP_SSL_VERIFY=true
+
+# Alternative environment variable names also supported
+export INSECURE_SKIP_TLS=true
+export SSL_VERIFY_DISABLED=true
+export TLS_INSECURE=true
+```
+
+**Note**: SSL verification is disabled by default to ensure compatibility with internal APIs that may use self-signed certificates or corporate proxy setups.
 
 ### Input Format
 

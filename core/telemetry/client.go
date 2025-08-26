@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,9 +19,17 @@ type Client struct {
 
 // New creates a new telemetry client
 func New(cfg *config.Config) *Client {
+	// 創建自定義的 HTTP transport 來處理 SSL 設定
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: cfg.API.SkipSSLVerify || cfg.API.InsecureSkipTLS,
+		},
+	}
+
 	return &Client{
 		httpClient: &http.Client{
-			Timeout: cfg.API.Timeout,
+			Timeout:   cfg.API.Timeout,
+			Transport: transport,
 		},
 		config: cfg,
 	}

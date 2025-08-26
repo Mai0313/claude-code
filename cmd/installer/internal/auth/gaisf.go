@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +29,13 @@ func GetGAISFToken(username, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create cookie jar: %w", err)
 	}
-	client := &http.Client{Jar: jar, Timeout: 30 * time.Second}
+	client := &http.Client{
+		Jar:     jar,
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
 
 	// Step 1: GET login page and parse CSRF from input[name="_csrf"]
 	resp, err := client.Get(loginURL)
