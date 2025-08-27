@@ -217,10 +217,19 @@ func (m Model) updateOperation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "enter", "esc":
-			m.CurrentView = MainMenuView
-			// Clear status messages when returning to main menu
+			if m.NextEnterToGAISF {
+				m.CurrentView = GAISFConfigView
+				m.GAISFConfig = NewGAISFConfig()
+				m.GAISFConfig.Stage = "choice"
+			} else {
+				m.CurrentView = MainMenuView
+			}
+			// Clear status messages when leaving operation view
 			m.StatusMessages = []StatusMsg{}
 			m.CurrentProgress = nil
+			m.Result = ""
+			m.IsError = false
+			m.NextEnterToGAISF = false
 			return m, nil
 		}
 
@@ -245,7 +254,12 @@ func (m Model) updateOperation(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.AutoSwitchToGAISF && !msg.IsError {
 			m.CurrentView = GAISFConfigView
 			m.GAISFConfig = NewGAISFConfig()
+			m.GAISFConfig.Stage = "choice"
 			return m, nil
+		}
+		// If we want the next Enter to go to GAISF options, mark it
+		if msg.AutoSwitchToGAISF && !msg.IsError && m.Result == "" {
+			m.NextEnterToGAISF = true
 		}
 
 		return m, nil
@@ -264,15 +278,16 @@ func (m Model) View() string {
 		return "\n" + m.List.View()
 
 	case GAISFConfigView:
-		if m.GAISFConfig.Stage == "choice" {
+		switch m.GAISFConfig.Stage {
+		case "choice":
 			return "\n" + m.GAISFList.View()
-		} else if m.GAISFConfig.Stage == "processing" {
+		case "processing":
 			return fmt.Sprintf(
 				"\n%s\n\n%s\n",
 				HeaderStyle.Render("🔑 GAISF API Authentication Setup"),
 				fmt.Sprintf("%s Authenticating with GAISF...\n\nPlease wait...", m.Spinner.View()),
 			)
-		} else {
+		default:
 			return fmt.Sprintf(
 				"\n%s\n\n%s\n",
 				HeaderStyle.Render("🔑 GAISF API Authentication Setup"),
@@ -417,17 +432,14 @@ func (m Model) processGaisfAuth() tea.Cmd {
 		if m.GAISFConfig.AutoLogin {
 			token, err := auth.GetGAISFToken(m.GAISFConfig.Username, m.GAISFConfig.Password)
 			if err != nil {
-				// On failure, prompt the user to manually enter token or skip
+				// Show error and wait for Enter; then go to GAISF options
 				environment := env.SelectAvailableURL()
 				baseURL := environment.MLOPBaseURL
 				loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
-
-				// Switch back to GAISF choice view to let user decide
-				m.CurrentView = GAISFConfigView
-				m.GAISFConfig.Stage = "choice"
-				// Provide a helpful status message with the login URL
+				// Mark that next Enter should open GAISF choices
+				m.NextEnterToGAISF = true
 				return OperationResult{
-					Message: fmt.Sprintf("⚠️ Login failed. You can:\n1) Choose 'Manual token input' and paste your token (get it from %s)\n2) Or 'Skip GAISF configuration' to continue without it.", loginURL),
+					Message: fmt.Sprintf("⚠️ Login failed.\n\n- Press Enter to choose next step:\n  1) Retry Employee ID/OA password\n  2) Manual token input (get from %s)\n  3) Skip GAISF configuration", loginURL),
 					IsError: true,
 				}
 			}

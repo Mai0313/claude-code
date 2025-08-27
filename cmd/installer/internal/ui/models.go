@@ -52,6 +52,8 @@ type Model struct {
 	StatusMessages  []StatusMsg
 	CurrentProgress *ProgressMsg
 	ShowDetails     bool
+	// If true, pressing Enter on OperationView result will open GAISF options
+	NextEnterToGAISF bool
 }
 
 // GAISF configuration state
