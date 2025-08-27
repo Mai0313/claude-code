@@ -101,6 +101,7 @@ type OperationResult struct {
 	Message           string
 	IsError           bool
 	AutoSwitchToGAISF bool // New field to indicate auto-switch to GAISF
+	GoToGAISFOnEnter  bool // If true, pressing Enter on OperationView should open GAISF options
 }
 
 // Status message types for real-time updates

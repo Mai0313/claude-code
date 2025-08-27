@@ -257,8 +257,8 @@ func (m Model) updateOperation(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.GAISFConfig.Stage = "choice"
 			return m, nil
 		}
-		// If we want the next Enter to go to GAISF options, mark it
-		if msg.AutoSwitchToGAISF && !msg.IsError && m.Result == "" {
+		// If the result requests Enter to go to GAISF options, mark it
+		if msg.GoToGAISFOnEnter {
 			m.NextEnterToGAISF = true
 		}
 
@@ -371,7 +371,11 @@ func (m Model) View() string {
 				statusContent.WriteString(SuccessStyle.Render(m.Result))
 			}
 			statusContent.WriteString("\n\n")
-			statusContent.WriteString("Press Enter to return to main menu...")
+			if m.NextEnterToGAISF {
+				statusContent.WriteString("Press Enter to return to GAISF options...")
+			} else {
+				statusContent.WriteString("Press Enter to return to main menu...")
+			}
 		} else {
 			statusContent.WriteString(fmt.Sprintf("\n%s Processing...", m.Spinner.View()))
 		}
@@ -436,11 +440,10 @@ func (m Model) processGaisfAuth() tea.Cmd {
 				environment := env.SelectAvailableURL()
 				baseURL := environment.MLOPBaseURL
 				loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
-				// Mark that next Enter should open GAISF choices
-				m.NextEnterToGAISF = true
 				return OperationResult{
-					Message: fmt.Sprintf("⚠️ Login failed.\n\n- Press Enter to choose next step:\n  1) Retry Employee ID/OA password\n  2) Manual token input (get from %s)\n  3) Skip GAISF configuration", loginURL),
-					IsError: true,
+					Message:          fmt.Sprintf("⚠️ Login failed.\n\n- Press Enter to choose next step:\n  1) Retry Employee ID/OA password\n  2) Manual token input (get from %s)\n  3) Skip GAISF configuration", loginURL),
+					IsError:          true,
+					GoToGAISFOnEnter: true,
 				}
 			}
 			if updateErr := config.UpdateClaudeCodeSettings(token); updateErr != nil {
