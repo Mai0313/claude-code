@@ -100,7 +100,7 @@ func main() {
 	gaisfItems := []list.Item{
 		ui.Item{
 			TitleText: "🔑 Auto-configure GAISF token",
-			DescText:  "Login with username/password to get token",
+			DescText:  "Login with Employee ID/OA password to get token",
 			Action:    nil,
 		},
 		ui.Item{

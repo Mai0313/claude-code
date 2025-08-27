@@ -102,7 +102,7 @@ After installation is complete, you can choose how to configure your API Key:
 
 #### Option 1: Automatic GAISF Token Setup (Recommended)
 
-- Follow the guide to enter your MediaTek account and password
+- Follow the guide to enter your Employee ID (e.g., mtkxxxxx) and OA password
 - The system will automatically obtain and configure the GAISF Token
 
 ![GAISF Setup](images/setup_gaisf.png)

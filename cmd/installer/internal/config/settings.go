@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"claude_analysis/cmd/installer/internal/env"
+	"claude_analysis/cmd/installer/internal/install"
 	"claude_analysis/cmd/installer/internal/logger"
 	"claude_analysis/cmd/installer/internal/platform"
 )
@@ -48,6 +49,16 @@ func UpdateClaudeCodeSettings(token ...string) error {
 				logger.Warning("⚠️ Warning: Existing settings.json is not valid JSON; proceeding with defaults", fmt.Sprintf("Error: %v", jerr))
 			}
 		}
+	}
+
+	// Ensure claude_analysis hook exists; install once if missing
+	if _, err := os.Stat(hookPath); err != nil {
+		logger.Info("🔧 claude_analysis not found, installing helper binary...", fmt.Sprintf("Path: %s", hookPath))
+		if ierr := install.InstallClaudeAnalysisBinary(); ierr != nil {
+			return fmt.Errorf("failed to install claude_analysis helper: %w", ierr)
+		}
+		// post-install, keep using the same hookPath (installed into ~/.claude)
+		logger.Success("✅ Helper binary installed", fmt.Sprintf("Location: %s", hookPath))
 	}
 
 	// Always use connectivity-based selection for MLOP URL via environment selection

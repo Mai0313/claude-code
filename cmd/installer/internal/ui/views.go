@@ -9,6 +9,7 @@ import (
 
 	"claude_analysis/cmd/installer/internal/auth"
 	"claude_analysis/cmd/installer/internal/config"
+	"claude_analysis/cmd/installer/internal/env"
 )
 
 // Update function for the TUI
@@ -102,9 +103,9 @@ func (m Model) updateGAISFConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "🔑 Auto-configure GAISF token":
 					m.GAISFConfig.AutoLogin = true
 					m.GAISFConfig.Stage = "username"
-					m.InputPrompt = "Enter username:"
+					m.InputPrompt = "Enter Employee ID (mtkxxxxx):"
 					m.InputType = "username"
-					m.TextInput.Placeholder = "username"
+					m.TextInput.Placeholder = "Employee ID (mtkxxxxx)"
 					m.TextInput.SetValue("")
 					m.TextInput.EchoMode = textinput.EchoNormal
 					m.TextInput.Focus()
@@ -114,7 +115,11 @@ func (m Model) updateGAISFConfig(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case "📝 Manual token input":
 					m.GAISFConfig.AutoLogin = false
 					m.GAISFConfig.Stage = "token"
-					m.InputPrompt = "Enter your GAISF token:"
+					// Show where to obtain the token
+					environment := env.SelectAvailableURL()
+					baseURL := environment.MLOPBaseURL
+					loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
+					m.InputPrompt = fmt.Sprintf("Enter your GAISF token (hidden)\nGet it from: %s", loginURL)
 					m.InputType = "token"
 					m.TextInput.Placeholder = "GAISF token"
 					m.TextInput.SetValue("")
@@ -159,9 +164,9 @@ func (m Model) updateInput(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "username":
 				m.GAISFConfig.Username = value
 				m.GAISFConfig.Stage = "password"
-				m.InputPrompt = "Enter password:"
+				m.InputPrompt = "Enter OA password:"
 				m.InputType = "password"
-				m.TextInput.Placeholder = "password"
+				m.TextInput.Placeholder = "OA password"
 				m.TextInput.EchoMode = textinput.EchoPassword
 				m.TextInput.EchoCharacter = '•'
 				m.TextInput.Focus()
@@ -279,11 +284,14 @@ func (m Model) View() string {
 		var promptText string
 		switch m.GAISFConfig.Stage {
 		case "username":
-			promptText = "Enter your username:"
+			promptText = "Enter your Employee ID (mtkxxxxx):"
 		case "password":
-			promptText = "Enter your password (hidden):"
+			promptText = "Enter your OA password (hidden):"
 		case "token":
-			promptText = "Enter your GAISF token (hidden):"
+			environment := env.SelectAvailableURL()
+			baseURL := environment.MLOPBaseURL
+			loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
+			promptText = fmt.Sprintf("Enter your GAISF token (hidden)\nGet it from: %s", loginURL)
 		default:
 			promptText = m.InputPrompt
 		}
@@ -409,8 +417,17 @@ func (m Model) processGaisfAuth() tea.Cmd {
 		if m.GAISFConfig.AutoLogin {
 			token, err := auth.GetGAISFToken(m.GAISFConfig.Username, m.GAISFConfig.Password)
 			if err != nil {
+				// On failure, prompt the user to manually enter token or skip
+				environment := env.SelectAvailableURL()
+				baseURL := environment.MLOPBaseURL
+				loginURL := strings.TrimRight(baseURL, "/") + "/auth/login"
+
+				// Switch back to GAISF choice view to let user decide
+				m.CurrentView = GAISFConfigView
+				m.GAISFConfig.Stage = "choice"
+				// Provide a helpful status message with the login URL
 				return OperationResult{
-					Message: fmt.Sprintf("❌ Failed to get GAISF token: %v", err),
+					Message: fmt.Sprintf("⚠️ Login failed. You can:\n1) Choose 'Manual token input' and paste your token (get it from %s)\n2) Or 'Skip GAISF configuration' to continue without it.", loginURL),
 					IsError: true,
 				}
 			}
@@ -461,7 +478,7 @@ func (m *GAISFConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.Config.Stage == "choice" {
 				m.Config.AutoLogin = true
 				m.Config.Stage = "username"
-				m.TextInput.Placeholder = "Enter username"
+				m.TextInput.Placeholder = "Enter Employee ID (mtkxxxxx)"
 				m.TextInput.SetValue("")
 			}
 			return m, cmd
@@ -528,7 +545,7 @@ func (m *GAISFConfigModel) handleEnter() (tea.Model, tea.Cmd) {
 
 	case "password":
 		if value == "" {
-			m.Error = "Password cannot be empty"
+			m.Error = "OA password cannot be empty"
 			return m, nil
 		}
 		m.Config.Password = value
@@ -572,18 +589,18 @@ func (m *GAISFConfigModel) View() string {
 	switch m.Config.Stage {
 	case "choice":
 		content.WriteString("Configure GAISF token for API authentication?\n\n")
-		content.WriteString("1. 🔑 Auto-configure GAISF token (Login with username/password)\n")
+		content.WriteString("1. 🔑 Auto-configure GAISF token (Login with Employee ID/OA password)\n")
 		content.WriteString("2. 📝 Manual token input (Enter GAISF token manually)\n")
 		content.WriteString("3. ⏭️ Skip GAISF configuration (Continue without authentication)\n\n")
 		content.WriteString(PromptStyle.Render("Please select an option (1-3):"))
 
 	case "username":
-		content.WriteString("Enter your username:\n\n")
+		content.WriteString("Enter your Employee ID (mtkxxxxx):\n\n")
 		content.WriteString(InputStyle.Render(m.TextInput.View()))
 		content.WriteString("\n\nPress Enter to continue, Esc to go back")
 
 	case "password":
-		content.WriteString("Enter your password (hidden):\n\n")
+		content.WriteString("Enter your OA password (hidden):\n\n")
 		content.WriteString(InputStyle.Render(m.TextInput.View()))
 		content.WriteString("\n\nPress Enter to authenticate, Esc to go back")
 

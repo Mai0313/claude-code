@@ -102,7 +102,7 @@ chmod +x ./installer  # 給予執行權限（如需要）
 
 #### 選項 1：自動設定 GAISF Token（推薦）
 
-- 根據引導輸入您的 MediaTek 帳號和密碼
+- 依照引導輸入您的員工編號（例如：mtkxxxxx）與 OA 密碼
 - 系統會自動取得並設定 GAISF Token
 
 ![GAISF 設定](images/setup_gaisf.png)
