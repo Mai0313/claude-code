@@ -46,7 +46,7 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 		log.Printf("[ERROR] Failed to read JSONL file: %v", err)
 		return map[string]interface{}{"status": "error", "message": "failed to read JSONL file"}
 	}
-	aggregated := telemetry.AggregateConversationStats(data)
+	aggregated := telemetry.AnalyzeConversations(data)
 
 	// 透過解析器聚合統計，包裝成單一物件 {user, records, ...}
 	payload := map[string]interface{}{

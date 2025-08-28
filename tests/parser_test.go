@@ -24,7 +24,7 @@ func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
 		t.Fatalf("ReadJSONL error: %v", err)
 	}
 
-	statsArr := telemetry.AggregateConversationStats(records)
+	statsArr := telemetry.AnalyzeConversations(records)
 	if len(statsArr) != 1 {
 		t.Fatalf("expected 1 stats record, got %d", len(statsArr))
 	}
@@ -78,9 +78,14 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 			"parentUuid": "a1",
 			"timestamp":  "2025-01-01T00:00:01Z",
 			"toolUseResult": map[string]interface{}{
-				// top-level fields (no nested file object)
-				"filePath": "fileA.txt",
-				"content":  "hello世界\n", // 8 runes (5+2+1)
+				"type": "text",
+				"file": map[string]interface{}{
+					"filePath":   "fileA.txt",
+					"content":    "hello世界\n", // 8 runes (5+2+1)
+					"numLines":   2,
+					"startLine":  1,
+					"totalLines": 2,
+				},
 			},
 		},
 		{
@@ -99,11 +104,9 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 			"parentUuid": "b1",
 			"timestamp":  "2025-01-01T00:00:03Z",
 			"toolUseResult": map[string]interface{}{
-				// nested file object
-				"file": map[string]interface{}{
-					"filePath": "fileB.txt",
-					"content":  "line1\nline2\n", // 12 runes, 3 lines
-				},
+				"type":     "create",
+				"filePath": "fileB.txt",
+				"content":  "line1\nline2\n", // 12 runes, 3 lines
 			},
 		},
 		{
@@ -114,7 +117,7 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 			"timestamp": "2025-01-01T00:00:04Z",
 			"message": map[string]interface{}{
 				"content": []interface{}{
-					map[string]interface{}{"type": "tool_use", "name": "ApplyDiff"},
+					map[string]interface{}{"type": "tool_use", "name": "Edit"},
 				},
 			},
 		},
@@ -122,14 +125,14 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 			"parentUuid": "c1",
 			"timestamp":  "2025-01-01T00:00:05Z",
 			"toolUseResult": map[string]interface{}{
-				// structuredPatch fallback & top-level filePath
-				"structuredPatch": []string{"@@ -1,1 +1,1 @@"},
-				"filePath":        "fileB.txt",
+				"filePath":  "fileB.txt",
+				"oldString": "old content",
+				"newString": "new content\nwith more lines",
 			},
 		},
 	}
 
-	statsArr := telemetry.AggregateConversationStats(recs)
+	statsArr := telemetry.AnalyzeConversations(recs)
 	if len(statsArr) != 1 {
 		t.Fatalf("expected 1 stats record, got %d", len(statsArr))
 	}
@@ -167,7 +170,7 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 	}
 
 	// Tool call counts
-	if stats.ToolCallCounts["Read"] != 1 || stats.ToolCallCounts["Write"] != 1 || stats.ToolCallCounts["ApplyDiff"] != 1 {
+	if stats.ToolCallCounts.Read != 1 || stats.ToolCallCounts.Write != 1 || stats.ToolCallCounts.Edit != 1 {
 		t.Errorf("ToolCallCounts mismatch: %+v", stats.ToolCallCounts)
 	}
 
@@ -189,7 +192,7 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 }
 
 func TestParser_EmptyRecords_ReturnsEmpty(t *testing.T) {
-	statsArr := telemetry.AggregateConversationStats(nil)
+	statsArr := telemetry.AnalyzeConversations(nil)
 	if len(statsArr) != 0 {
 		t.Fatalf("expected empty stats for empty input, got %d", len(statsArr))
 	}
@@ -197,4 +200,4 @@ func TestParser_EmptyRecords_ReturnsEmpty(t *testing.T) {
 
 // Integration tests that execute the binary and hit network are purposely omitted
 // to keep tests hermetic. End-to-end behavior is covered by unit tests using
-// telemetry.AggregateConversationStats and real sample JSONL lines.
+	// telemetry.AnalyzeConversations and real sample JSONL lines.
