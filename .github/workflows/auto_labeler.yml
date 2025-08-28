@@ -15,9 +15,6 @@ jobs:
       - name: Disable SSL Verify
         run: git config --global http.sslVerify false
 
-      - name: Setup MTK Certification
-        uses: https://gitea.mediatek.inc/actions/mtk-cert-action@v1.2.0
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
