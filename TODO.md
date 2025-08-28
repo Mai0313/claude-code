@@ -16,4 +16,4 @@ applyDiffDetails: 要存放 ClaudeCodeLogContentInputEdit 的 old_string 和 new
 
 runCommandDetails: 要存放 ClaudeCodeLogContentInputBash 的 command 和 description 也要考慮到 ClaudeCodeLogToolUseResultBash
 
-有一些資訊可能要從 ClaudeCodeLogToolUseResult 裡面取得 例如 lineCount 可能較需要依照不同情況去取得
+有一些資訊可能要從 ClaudeCodeLogToolUseResult 裡面取得
