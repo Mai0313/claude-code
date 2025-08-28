@@ -1,6 +1,6 @@
 請幫我繼續完成 main.py
 
-這腳本是一個範例腳本 不需要太複雜
+這腳本是一個範例腳本 不需要太複雜 因為後續會翻譯成 Golang
 這腳本會將 tests/test_conversation.jsonl parse ​成 examples/claude_code_log.json 這種格式
 請你將此次更新著重在輸出文件裡的 records 裡面的 *Details
 
