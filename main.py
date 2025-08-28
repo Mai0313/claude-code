@@ -107,7 +107,7 @@ ClaudeCodeLogToolInput = Union[
 
 class ClaudeCodeLogContentToolUse(BaseModel):
     type: Literal["tool_use"]
-    name: Literal["TodoWrite", "Read", "Edit", "Bash", "Write"]  # 嚴格限制已知工具類型
+    name: Literal["TodoWrite", "Read", "Edit", "Bash", "Write"]
     id: str
     input: ClaudeCodeLogToolInput
 
