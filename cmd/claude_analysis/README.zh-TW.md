@@ -12,7 +12,7 @@ Claude Analysis 自動：
 
 ## 運作原理
 
-該工具有兩種操作模式：
+該工具以 STOP 模式操作：
 
 ### STOP 模式（預設）
 - 從標準輸入讀取包含 `transcript_path` 的 Python 字典
@@ -20,20 +20,12 @@ Claude Analysis 自動：
 - 彙整會話中的所有開發活動
 - 將分析資料傳送到遙測伺服器
 
-### POST_TOOL 模式
-- 直接從標準輸入讀取 JSON 行
-- 即時處理工具使用事件
-- 彙整統計資料並立即傳送到伺服器
-
 ## 使用方法
 
 ### 基本用法
 ```bash
 # STOP 模式（預設）- 從標準輸入讀取記錄路徑
 echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
-
-# POST_TOOL 模式 - 直接讀取 JSON 行
-MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 
 # 自訂 API 端點
 ./claude_analysis --o11y_base_url https://custom-server.com/api/upload < input.json
@@ -46,20 +38,13 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 - `--version`: 顯示版本資訊並結束
 
 ### 環境變數
-- `MODE`: 設定為 `POST_TOOL` 進行直接 JSON 處理，或保持未設定使用 STOP 模式
-- 也可以在工作目錄中建立包含 `MODE=POST_TOOL` 的 `.env` 檔案
+- 也可以在工作目錄中建立包含環境設定的 `.env` 檔案
 
 ### 輸入格式
 
 **STOP 模式輸入：**
 ```
 {'transcript_path': '/absolute/path/to/conversation.jsonl'}
-```
-
-**POST_TOOL 模式輸入（JSONL）：**
-```json
-{"type":"assistant","uuid":"msg1","cwd":"/workspace","sessionId":"session1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
-{"parentUuid":"msg1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"file.txt","content":"Hello World"}}
 ```
 
 ## 追蹤什麼內容？

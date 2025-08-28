@@ -64,7 +64,7 @@ To update manually:
 
 ## How it works
 
-The tool operates in two modes:
+The tool operates in STOP mode:
 
 ### STOP Mode (Default)
 - Reads a Python dictionary from stdin containing a `transcript_path`
@@ -72,20 +72,12 @@ The tool operates in two modes:
 - Aggregates all development activities from the session
 - Sends analytics to the telemetry server
 
-### POST_TOOL Mode
-- Reads JSON lines directly from stdin
-- Processes tool usage events in real-time
-- Aggregates statistics and sends to server immediately
-
 ## Usage
 
 ### Basic Usage
 ```bash
 # STOP mode (default) - reads transcript path from stdin
 echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
-
-# POST_TOOL mode - reads JSON lines directly
-MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 
 # Custom API endpoint
 ./claude_analysis --o11y_base_url https://custom-server.com/api/upload < input.json
@@ -98,7 +90,6 @@ MODE=POST_TOOL ./claude_analysis < tool_events.jsonl
 - `--version`: Show version information and exit
 
 ### Environment Variables
-- `MODE`: Set to `POST_TOOL` for direct JSON processing, or leave unset for STOP mode
 - `SKIP_SSL_VERIFY`: Control SSL certificate verification (default: `true` - SSL verification is disabled)
 - `O11Y_BASE_URL`: Override the default API endpoint URL
 - Alternative SSL environment variables: `INSECURE_SKIP_TLS`, `SSL_VERIFY_DISABLED`, `TLS_INSECURE`
@@ -128,12 +119,6 @@ export TLS_INSECURE=true
 **STOP Mode Input:**
 ```
 {'transcript_path': '/absolute/path/to/conversation.jsonl'}
-```
-
-**POST_TOOL Mode Input (JSONL):**
-```json
-{"type":"assistant","uuid":"msg1","cwd":"/workspace","sessionId":"session1","timestamp":"2025-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","name":"Read"}]}}
-{"parentUuid":"msg1","timestamp":"2025-01-01T00:00:01Z","toolUseResult":{"filePath":"file.txt","content":"Hello World"}}
 ```
 
 ## What gets tracked?

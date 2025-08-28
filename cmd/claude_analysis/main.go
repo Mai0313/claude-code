@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"strings"
 
 	"claude_analysis/core/config"
 	"claude_analysis/core/telemetry"
@@ -36,42 +34,19 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 		return map[string]interface{}{"status": "error", "message": "failed to read stdin"}
 	}
 
-	var aggregated []telemetry.ApiConversationStats
-	if strings.EqualFold(cfg.Mode, "POST_TOOL") {
-		// 支援直接吃任意一行 JSONL（或整段文字含多行），逐行解析、彙整
-		reader := bufio.NewScanner(strings.NewReader(string(stdinData)))
-		raw := make([]map[string]interface{}, 0)
-		for reader.Scan() {
-			line := strings.TrimSpace(reader.Text())
-			if line == "" {
-				continue
-			}
-			var obj map[string]interface{}
-			if err := json.Unmarshal([]byte(line), &obj); err == nil {
-				raw = append(raw, obj)
-			} else {
-				log.Printf("[WARN] JSON parsing failed, skipping line: %v", err)
-			}
-		}
-		if len(raw) == 0 {
-			log.Printf("[ERROR] No valid JSON lines found in POST_TOOL mode")
-			return map[string]interface{}{"status": "error", "message": "no valid JSON lines found"}
-		}
-		aggregated = telemetry.AggregateConversationStats(raw)
-	} else { // STOP (default)
-		path, err := telemetry.ExtractTranscriptPath(string(stdinData))
-		if err != nil {
-			log.Printf("[ERROR] Failed to extract transcript path: %v", err)
-			return map[string]interface{}{"status": "error", "message": "failed to extract transcript path"}
-		}
-		log.Printf("[INFO] Extracted transcript path: %s", path)
-		data, err := telemetry.ReadJSONL(path)
-		if err != nil {
-			log.Printf("[ERROR] Failed to read JSONL file: %v", err)
-			return map[string]interface{}{"status": "error", "message": "failed to read JSONL file"}
-		}
-		aggregated = telemetry.AggregateConversationStats(data)
+	// STOP mode - extract transcript path and read JSONL file
+	path, err := telemetry.ExtractTranscriptPath(string(stdinData))
+	if err != nil {
+		log.Printf("[ERROR] Failed to extract transcript path: %v", err)
+		return map[string]interface{}{"status": "error", "message": "failed to extract transcript path"}
 	}
+	log.Printf("[INFO] Extracted transcript path: %s", path)
+	data, err := telemetry.ReadJSONL(path)
+	if err != nil {
+		log.Printf("[ERROR] Failed to read JSONL file: %v", err)
+		return map[string]interface{}{"status": "error", "message": "failed to read JSONL file"}
+	}
+	aggregated := telemetry.AggregateConversationStats(data)
 
 	// 透過解析器聚合統計，包裝成單一物件 {user, records, ...}
 	payload := map[string]interface{}{

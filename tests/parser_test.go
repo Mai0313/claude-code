@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -199,64 +198,3 @@ func TestParser_EmptyRecords_ReturnsEmpty(t *testing.T) {
 // Integration tests that execute the binary and hit network are purposely omitted
 // to keep tests hermetic. End-to-end behavior is covered by unit tests using
 // telemetry.AggregateConversationStats and real sample JSONL lines.
-
-func TestParser_POST_TOOL_FromSubsetJSONLines(t *testing.T) {
-	// Read a subset of lines (assistant tool_use Read + its toolUseResult) and aggregate
-	_, thisFile, _, _ := runtime.Caller(0)
-	jsonlPath := filepath.Join(filepath.Dir(thisFile), "test_conversation.jsonl")
-
-	f, err := os.Open(jsonlPath)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	var assistant map[string]interface{}
-	var toolres map[string]interface{}
-	var assistantUUID string
-	for scanner.Scan() {
-		line := scanner.Text()
-		var obj map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &obj); err != nil {
-			continue
-		}
-		if assistant == nil {
-			if obj["type"] == "assistant" {
-				// check contains tool_use name Read
-				if msg, ok := obj["message"].(map[string]interface{}); ok {
-					if arr, ok := msg["content"].([]interface{}); ok {
-						for _, it := range arr {
-							m, _ := it.(map[string]interface{})
-							if m != nil && m["type"] == "tool_use" && m["name"] == "Read" {
-								assistant = obj
-								if u, _ := obj["uuid"].(string); u != "" {
-									assistantUUID = u
-								}
-							}
-						}
-					}
-				}
-			}
-		} else if toolres == nil {
-			if p, _ := obj["parentUuid"].(string); p != "" && p == assistantUUID {
-				if _, ok := obj["toolUseResult"].(map[string]interface{}); ok {
-					toolres = obj
-					break
-				}
-			}
-		}
-	}
-	if assistant == nil || toolres == nil {
-		t.Fatalf("failed to locate assistant/toolUseResult lines in %s", jsonlPath)
-	}
-	subset := []map[string]interface{}{assistant, toolres}
-	statsArr := telemetry.AggregateConversationStats(subset)
-	if len(statsArr) != 1 {
-		t.Fatalf("expected 1, got %d", len(statsArr))
-	}
-	stats := statsArr[0]
-	if len(stats.ReadFileDetails) < 1 {
-		t.Errorf("expected at least 1 read detail, got %d", len(stats.ReadFileDetails))
-	}
-}
