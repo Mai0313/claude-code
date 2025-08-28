@@ -185,6 +185,15 @@ After successful installation, the completion screen will be displayed:
    - Check company network policies
    - Contact IT department to confirm network access permissions
 
+### 🍎 macOS Security Verification Error
+
+**Problem:** macOS shows "cannot verify developer" or "malicious software" warning when running the installer.
+
+**Solution:**
+- Go to **System Settings** > **Privacy & Security** > **Security**
+- Click **"Allow Anyway"** next to the blocked installer message
+- Re-run the installer
+
 ### 🔄 Reinstallation
 
 If you encounter serious issues, you can completely reinstall:
