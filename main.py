@@ -18,8 +18,8 @@ class ClaudeCodeAnalysisDetail(BaseModel):
     filePath: str
     characterCount: int
     timestamp: int
-    aiOutputContent: str = ""
-    fileContent: str = ""
+    newContent: str = ""
+    oldContent: str = ""
 
 
 class ClaudeCodeAnalysisToolCalls(BaseModel):
