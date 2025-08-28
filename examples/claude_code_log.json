@@ -15,8 +15,8 @@
                     "lineCount": 66,
                     "characterCount": 2122,
                     "timestamp": 1755841750178,
-                    "aiOutputContent": "...",
-                    "fileContent": "..."
+                    "newContent": "...",
+                    "oldContent": "..."
                 }
             ],
             "readFileDetails": [
@@ -24,8 +24,8 @@
                     "filePath": "/proj/ds906659/aith/mtkllm_sdk/Makefile",
                     "characterCount": 2656,
                     "timestamp": 1755841694411,
-                    "aiOutputContent": "",
-                    "fileContent": "..."
+                    "newContent": "",
+                    "oldContent": "..."
                 }
             ],
             "applyDiffDetails": [
@@ -33,8 +33,8 @@
                     "filePath": "/proj/ds906659/aith/mtkllm_sdk/Makefile",
                     "characterCount": 2656,
                     "timestamp": 1755841694411,
-                    "aiOutputContent": "...",
-                    "fileContent": "..."
+                    "newContent": "...",
+                    "oldContent": "..."
                 }
             ],
             "toolCallCounts": {
