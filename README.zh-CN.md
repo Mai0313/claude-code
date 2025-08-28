@@ -163,7 +163,7 @@ chmod +x ./installer  # 给予执行权限（如需要）
 #### macOS/Linux
 - 安装程序会在 Debian/Ubuntu 系统上自动尝试使用 NodeSource 22.x
 - 如果自动安装失败，请手动安装：
-  1. 前往 [Node.js 官网](https://nodejs.org/) 下载 v22+ 版本
+  1. 前往 [Node.js 官网](https://nodejs.org/) 下载安装 v22+ 版本
   2. 安装完成后重新执行安装程序
 
 #### Windows
@@ -281,3 +281,11 @@ chmod +x ./installer  # 给予执行权限（如需要）
 4. **更新设置**：编辑 `~/.claude/settings.json`
 
 祝您使用愉快！ 🎉
+
+---
+
+## 关于 claude_analysis 的解析
+
+- `cmd/claude_analysis` 现在会先将每一行 JSONL 规范化为类型化结构，再进行汇总。
+- 这使 Go 端后续读取工具输出更稳健、也更易扩展。
+- 同时提高了扫描器缓冲区，支持大型 JSONL 行。

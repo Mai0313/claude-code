@@ -108,13 +108,11 @@ chmod +x ./installer  # 給予執行權限（如需要）
 ![GAISF 設定](images/setup_gaisf.png)
 
 #### 選項 2：手動輸入 GAISF Token
-
 - 如果您已經有 GAISF Token，可直接貼上到輸入框中
 
 ![貼上 GAISF Token](images/paste_gaisf_token.png)
 
 #### 選項 3：跳過設定（進階使用者）
-
 - 稍後手動編輯設定檔案來設定 API Key
 
 ![跳過設定](images/skip_setup.png)
@@ -283,3 +281,11 @@ chmod +x ./installer  # 給予執行權限（如需要）
 4. **更新設定**：編輯 `~/.claude/settings.json`
 
 祝您使用愉快！ 🎉
+
+---
+
+## 關於 claude_analysis 的解析
+
+- `cmd/claude_analysis` 現在會先將每一行 JSONL 正規化為型別化結構，再進行彙整。
+- 這讓 Go 端後續讀取工具輸出時更穩健、易於擴充。
+- 亦已提高掃描器緩衝區，支援大型 JSONL 行。

@@ -46,6 +46,9 @@ func ReadJSONL(filename string) ([]map[string]interface{}, error) {
 
 	var results []map[string]interface{}
 	scanner := bufio.NewScanner(file)
+	// Increase the scanner buffer to handle large JSONL lines (up to 50MB)
+	buf := make([]byte, 0, 1024*1024)
+	scanner.Buffer(buf, 50*1024*1024)
 	lineNumber := 0
 
 	for scanner.Scan() {
