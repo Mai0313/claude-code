@@ -247,14 +247,13 @@ console = Console()
 def analyze_conversations() -> None:
     conversation_path = Path("./examples/test_conversation.jsonl")
     conversations = orjsonl.load(conversation_path)
-    for conversation in conversations:
+    for idx, conversation in enumerate(conversations):
         try:
             claude_code_log = ClaudeCodeLog(**conversation)
-            console.print(claude_code_log)
-        except ValidationError as e:
-            console.print(e)
-            console.print(conversation_path.as_posix())
-            break  # 遇到錯誤就停止，方便調試
+            print(claude_code_log)
+        except ValidationError:
+            print(f"{idx} can not be parsed.")
+            continue  # 遇到錯誤就跳過 表示我們不需要
 
 
 if __name__ == "__main__":
