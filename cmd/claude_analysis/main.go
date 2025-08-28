@@ -46,19 +46,19 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 		log.Printf("[ERROR] Failed to read JSONL file: %v", err)
 		return map[string]interface{}{"status": "error", "message": "failed to read JSONL file"}
 	}
-	aggregated := telemetry.AggregateConversationStats(data)
+	records := telemetry.AggregateConversationStats(data)
 
-	// 透過解析器聚合統計，包裝成單一物件 {user, records, ...}
-	payload := map[string]interface{}{
-		"user":            cfg.UserName,
-		"records":         aggregated,
-		"extensionName":   cfg.ExtensionName,
-		"machineId":       cfg.MachineID,
-		"insightsVersion": cfg.InsightsVersion,
+	// 使用結構化的數據模型
+	analysis := telemetry.ClaudeCodeAnalysis{
+		User:            cfg.UserName,
+		ExtensionName:   cfg.ExtensionName,
+		InsightsVersion: cfg.InsightsVersion,
+		MachineID:       cfg.MachineID,
+		Records:         records,
 	}
 
 	// 送出
-	response, err := client.Submit(payload)
+	response, err := client.Submit(analysis)
 	if err != nil {
 		log.Printf("[ERROR] API call failed (endpoint: %s): %v", cfg.API.Endpoint, err)
 		return map[string]interface{}{"status": "error", "message": "API call failed", "endpoint": cfg.API.Endpoint}

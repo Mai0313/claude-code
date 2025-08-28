@@ -3,280 +3,312 @@ package telemetry
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
-// WriteToFileDetail mirrors the target schema for write operations
-type WriteToFileDetail struct {
-	FilePath        string `json:"filePath"`
-	LineCount       int    `json:"lineCount"`
-	CharacterCount  int    `json:"characterCount"`
-	Timestamp       int64  `json:"timestamp"`
-	AiOutputContent string `json:"aiOutputContent"`
-	FileContent     string `json:"fileContent"`
-}
-
-// ReadFileDetail mirrors the target schema for read operations
-type ReadFileDetail struct {
-	FilePath        string `json:"filePath"`
-	CharacterCount  int    `json:"characterCount"`
-	Timestamp       int64  `json:"timestamp"`
-	AiOutputContent string `json:"aiOutputContent"`
-	FileContent     string `json:"fileContent"`
-}
-
-// ApplyDiffDetail mirrors the target schema for apply-diff operations
-type ApplyDiffDetail struct {
-	FilePath        string `json:"filePath"`
-	CharacterCount  int    `json:"characterCount"`
-	Timestamp       int64  `json:"timestamp"`
-	AiOutputContent string `json:"aiOutputContent"`
-	FileContent     string `json:"fileContent"`
-}
-
-// ApiConversationStats is the aggregated record we will attach to payload.records
-type ApiConversationStats struct {
-	TotalUniqueFiles     int                 `json:"totalUniqueFiles"`
-	TotalWriteLines      int                 `json:"totalWriteLines"`
-	TotalReadCharacters  int                 `json:"totalReadCharacters"`
-	TotalWriteCharacters int                 `json:"totalWriteCharacters"`
-	TotalDiffCharacters  int                 `json:"totalDiffCharacters"`
-	WriteToFileDetails   []WriteToFileDetail `json:"writeToFileDetails"`
-	ReadFileDetails      []ReadFileDetail    `json:"readFileDetails"`
-	ApplyDiffDetails     []ApplyDiffDetail   `json:"applyDiffDetails"`
-	ToolCallCounts       map[string]int      `json:"toolCallCounts"`
-	TaskID               string              `json:"taskId"`
-	Timestamp            int64               `json:"timestamp"`
-	FolderPath           string              `json:"folderPath"`
-	GitRemoteURL         string              `json:"gitRemoteUrl"`
-}
-
-// AggregateConversationStats transforms raw JSONL event maps into a single aggregated stats record.
-// It is designed to be called right after ReadJSONL without changing core logic elsewhere.
-func AggregateConversationStats(records []map[string]interface{}) []ApiConversationStats {
+// AggregateConversationStats transforms raw JSONL event maps into structured analysis records.
+// This function uses structured parsing to handle each JSON line with proper type safety.
+func AggregateConversationStats(records []map[string]interface{}) []ClaudeCodeAnalysisRecord {
 	if len(records) == 0 {
-		return []ApiConversationStats{}
+		return []ClaudeCodeAnalysisRecord{}
 	}
 
-	// Map assistant message UUID -> tool name (e.g., "Read", "Write")
-	uuidToToolName := make(map[string]string)
-	toolCallCounts := make(map[string]int)
+	log.Printf("[DEBUG] Starting to process %d JSONL records", len(records))
 
+	// Parse each raw record into structured format
+	parsedLogs := make([]*ClaudeCodeLog, 0, len(records))
+	for i, record := range records {
+		parsedLog, err := parseClaudeCodeLog(record)
+		if err != nil {
+			log.Printf("[WARN] Failed to parse record %d: %v", i+1, err)
+			continue // Skip invalid records
+		}
+		parsedLogs = append(parsedLogs, parsedLog)
+	}
+
+	log.Printf("[DEBUG] Successfully parsed %d/%d records", len(parsedLogs), len(records))
+
+	// Now process the structured data
+	return processStructuredLogs(parsedLogs)
+}
+
+// parseClaudeCodeLog converts a raw map to structured ClaudeCodeLog
+func parseClaudeCodeLog(record map[string]interface{}) (*ClaudeCodeLog, error) {
+	// Convert map to JSON and back to struct for proper parsing
+	jsonBytes, err := json.Marshal(record)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal record: %w", err)
+	}
+
+	var log ClaudeCodeLog
+	if err := json.Unmarshal(jsonBytes, &log); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal to ClaudeCodeLog: %w", err)
+	}
+
+	return &log, nil
+}
+
+// processStructuredLogs processes structured logs to generate analysis records
+func processStructuredLogs(logs []*ClaudeCodeLog) []ClaudeCodeAnalysisRecord {
+	// Accumulators for analysis data
 	var (
-		cwd       string
-		sessionID string
-		lastMs    int64
+		writeDetails     []ClaudeCodeAnalysisWriteDetail
+		readDetails      []ClaudeCodeAnalysisReadDetail
+		applyDiffDetails []ClaudeCodeAnalysisApplyDiffDetail
+		runDetails       []ClaudeCodeAnalysisRunCommandDetail
+		toolCounts       ClaudeCodeAnalysisToolCalls
+		uniqueFiles      = make(map[string]struct{})
+		
+		totalWriteLines      = 0
+		totalReadCharacters  = 0
+		totalWriteCharacters = 0
+		totalDiffCharacters  = 0
+		
+		folderPath   = ""
+		gitRemoteURL = ""
+		taskID       = ""
+		lastTimestamp int64 = 0
 	)
 
-	// First pass: extract context (cwd, sessionId), collect tool calls
-	for _, rec := range records {
-		if v, ok := rec["cwd"].(string); ok && v != "" && cwd == "" {
-			cwd = v
+	// Map to track UUID -> tool name for matching tool results
+	uuidToToolName := make(map[string]string)
+
+	// First pass: extract context and count tool calls
+	for _, logEntry := range logs {
+		// Extract context information
+		if folderPath == "" && logEntry.Cwd != "" {
+			folderPath = logEntry.Cwd
 		}
-		if v, ok := rec["sessionId"].(string); ok && v != "" && sessionID == "" {
-			sessionID = v
-		}
-		if ts, ok := rec["timestamp"].(string); ok {
-			if ms := parseISOMillis(ts); ms > lastMs {
-				lastMs = ms
-			}
+		if taskID == "" && logEntry.SessionID != "" {
+			taskID = logEntry.SessionID
 		}
 
-		// Parse assistant tool_use events
-		recType, _ := rec["type"].(string)
-		if recType == "assistant" {
-			uuid, _ := rec["uuid"].(string)
-			msg, _ := rec["message"].(map[string]interface{})
-			if msg != nil {
-				if arr, ok := msg["content"].([]interface{}); ok {
-					for _, item := range arr {
-						m, _ := item.(map[string]interface{})
-						if m == nil {
-							continue
-						}
-						if t, _ := m["type"].(string); t == "tool_use" {
-							name, _ := m["name"].(string)
-							if name != "" {
-								uuidToToolName[uuid] = name
-								toolCallCounts[name]++
-							}
-						}
-					}
-				}
-			}
+		// Parse timestamp
+		if ts := ParseTimestamp(logEntry.Timestamp); ts > lastTimestamp {
+			lastTimestamp = ts
+		}
+
+		// Process assistant messages for tool calls
+		if logEntry.Type == "assistant" {
+			processAssistantMessage(logEntry, &toolCounts, &runDetails, uuidToToolName)
 		}
 	}
 
-	// Second pass: collect tool results and build details
-	writeDetails := make([]WriteToFileDetail, 0)
-	readDetails := make([]ReadFileDetail, 0)
-	applyDiffDetails := make([]ApplyDiffDetail, 0)
-	uniqueFiles := make(map[string]struct{})
-	var totalWriteLines int
-	var totalReadChars int
-	var totalWriteChars int
-	var totalDiffChars int
-
-	for _, rec := range records {
-		toolRes, ok := rec["toolUseResult"].(map[string]interface{})
-		if !ok || toolRes == nil {
-			continue
-		}
-		parentUUID, _ := rec["parentUuid"].(string)
-		toolName := uuidToToolName[parentUUID]
-
-		// Attempt to extract filePath/content from either nested file object or top-level fields
-		var filePath string
-		var content string
-		if fileObj, _ := toolRes["file"].(map[string]interface{}); fileObj != nil {
-			if v, ok := tryString(fileObj["filePath"]); ok {
-				filePath = v
-			}
-			if v, ok := tryString(fileObj["content"]); ok {
-				content = v
-			}
-		}
-		if filePath == "" {
-			if v, ok := tryString(toolRes["filePath"]); ok {
-				filePath = v
-			}
-		}
-		if content == "" {
-			if v, ok := tryString(toolRes["content"]); ok {
-				content = v
-			}
-		}
-		// Fallback: if still no content but there is a structuredPatch, serialize it
-		if content == "" {
-			if sp, ok := toolRes["structuredPatch"]; ok && sp != nil {
-				if b, err := json.Marshal(sp); err == nil {
-					content = string(b)
-				}
-			}
-		}
-
-		tsStr, _ := rec["timestamp"].(string)
-		tsMs := parseISOMillis(tsStr)
-
-		if filePath != "" {
-			uniqueFiles[filePath] = struct{}{}
-		}
-
-		switch strings.ToLower(toolName) {
-		case "read":
-			if content == "" {
-				// nothing to record
-				continue
-			}
-			chars := utf8.RuneCountInString(content)
-			readDetails = append(readDetails, ReadFileDetail{
-				FilePath:        filePath,
-				CharacterCount:  chars,
-				Timestamp:       tsMs,
-				AiOutputContent: "",
-				FileContent:     content,
-			})
-			totalReadChars += chars
-		case "write":
-			if content == "" {
-				continue
-			}
-			chars := utf8.RuneCountInString(content)
-			lines := countLines(content)
-			writeDetails = append(writeDetails, WriteToFileDetail{
-				FilePath:        filePath,
-				LineCount:       lines,
-				CharacterCount:  chars,
-				Timestamp:       tsMs,
-				AiOutputContent: content,
-				FileContent:     content,
-			})
-			totalWriteChars += chars
-			totalWriteLines += lines
-		case "applydiff", "apply_diff", "applypatch":
-			if content == "" {
-				continue
-			}
-			chars := utf8.RuneCountInString(content)
-			applyDiffDetails = append(applyDiffDetails, ApplyDiffDetail{
-				FilePath:        filePath,
-				CharacterCount:  chars,
-				Timestamp:       tsMs,
-				AiOutputContent: content,
-				FileContent:     content,
-			})
-			totalDiffChars += chars
-		default:
-			// Unknown tool; ignore for details but still counted in ToolCallCounts above
+	// Second pass: process tool results
+	for _, logEntry := range logs {
+		if len(logEntry.ToolUseResult) > 0 {
+			processToolResult(logEntry, uuidToToolName, &writeDetails, &readDetails, 
+							&applyDiffDetails, uniqueFiles, &totalWriteLines, 
+							&totalReadCharacters, &totalWriteCharacters, &totalDiffCharacters)
 		}
 	}
 
-	gitURL := getGitRemoteOriginURL(cwd)
+	// Get git remote URL
+	if folderPath != "" {
+		gitRemoteURL = getGitRemoteOriginURL(folderPath)
+	}
 
-	stats := ApiConversationStats{
+	// Create the analysis record
+	record := ClaudeCodeAnalysisRecord{
 		TotalUniqueFiles:     len(uniqueFiles),
 		TotalWriteLines:      totalWriteLines,
-		TotalReadCharacters:  totalReadChars,
-		TotalWriteCharacters: totalWriteChars,
-		TotalDiffCharacters:  totalDiffChars,
+		TotalReadCharacters:  totalReadCharacters,
+		TotalWriteCharacters: totalWriteCharacters,
+		TotalDiffCharacters:  totalDiffCharacters,
 		WriteToFileDetails:   writeDetails,
 		ReadFileDetails:      readDetails,
 		ApplyDiffDetails:     applyDiffDetails,
-		ToolCallCounts:       toolCallCounts,
-		TaskID:               sessionID,
-		Timestamp:            lastMs,
-		FolderPath:           cwd,
-		GitRemoteURL:         gitURL,
+		RunCommandDetails:    runDetails,
+		ToolCallCounts:       toolCounts,
+		TaskID:               taskID,
+		Timestamp:            lastTimestamp,
+		FolderPath:           folderPath,
+		GitRemoteURL:         gitRemoteURL,
 	}
 
-	return []ApiConversationStats{stats}
+	log.Printf("[DEBUG] Generated analysis record: %d unique files, %d tool calls", 
+		len(uniqueFiles), 
+		toolCounts.Read+toolCounts.Write+toolCounts.Edit+toolCounts.TodoWrite+toolCounts.Bash)
+
+	return []ClaudeCodeAnalysisRecord{record}
 }
 
-func parseISOMillis(iso string) int64 {
-	if iso == "" {
-		return 0
+// processAssistantMessage processes assistant messages to extract tool calls and run commands
+func processAssistantMessage(logEntry *ClaudeCodeLog, toolCounts *ClaudeCodeAnalysisToolCalls, 
+							runDetails *[]ClaudeCodeAnalysisRunCommandDetail, uuidToToolName map[string]string) {
+	
+	var assistantMsg ClaudeCodeLogAssistantMessage
+	if err := json.Unmarshal(logEntry.Message, &assistantMsg); err != nil {
+		log.Printf("[WARN] Failed to parse assistant message: %v", err)
+		return
 	}
-	// Try RFC3339 with or without fractional seconds
-	if t, err := time.Parse(time.RFC3339Nano, iso); err == nil {
-		return t.UnixNano() / int64(time.Millisecond)
-	}
-	if t, err := time.Parse(time.RFC3339, iso); err == nil {
-		return t.UnixNano() / int64(time.Millisecond)
-	}
-	return 0
-}
 
-func countLines(s string) int {
-	if s == "" {
-		return 0
-	}
-	// Count lines by splitting; handle trailing newline correctly
-	lines := 1
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines++
+	timestamp := ParseTimestamp(logEntry.Timestamp)
+
+	// Process content for tool_use
+	for _, content := range assistantMsg.Content {
+		if content.Type == "tool_use" {
+			toolName := content.Name
+			uuidToToolName[logEntry.UUID] = toolName
+
+			// Count tool calls
+			switch toolName {
+			case "read", "Read":
+				toolCounts.Read++
+			case "write", "Write":
+				toolCounts.Write++
+			case "edit", "Edit":
+				toolCounts.Edit++
+			case "todo_write", "TodoWrite":
+				toolCounts.TodoWrite++
+			case "bash", "Bash":
+				toolCounts.Bash++
+				// Process Bash input for run command details
+				processBashInput(content.Input, logEntry.Cwd, timestamp, runDetails)
+			}
 		}
 	}
-	return lines
 }
 
-func tryString(v interface{}) (string, bool) {
-	s, ok := v.(string)
-	if ok {
-		return s, true
+// processBashInput extracts command details from Bash tool input
+func processBashInput(inputRaw json.RawMessage, cwd string, timestamp int64, runDetails *[]ClaudeCodeAnalysisRunCommandDetail) {
+	var bashInput ClaudeCodeLogContentInputBash
+	if err := json.Unmarshal(inputRaw, &bashInput); err != nil {
+		log.Printf("[WARN] Failed to parse bash input: %v", err)
+		return
 	}
-	// sometimes nested value is JSON-encoded; try to stringify
-	if v == nil {
-		return "", false
+
+	if bashInput.Command != "" {
+		*runDetails = append(*runDetails, ClaudeCodeAnalysisRunCommandDetail{
+			ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+				FilePath:       cwd, // Use cwd as filePath for commands
+				LineCount:      0,
+				CharacterCount: len(bashInput.Command),
+				Timestamp:      timestamp,
+			},
+			Command:     bashInput.Command,
+			Description: bashInput.Description,
+		})
 	}
-	if b, err := json.Marshal(v); err == nil {
-		return string(b), true
+}
+
+// processToolResult processes tool use results to extract file operation details
+func processToolResult(logEntry *ClaudeCodeLog, uuidToToolName map[string]string,
+					  writeDetails *[]ClaudeCodeAnalysisWriteDetail,
+					  readDetails *[]ClaudeCodeAnalysisReadDetail,
+					  applyDiffDetails *[]ClaudeCodeAnalysisApplyDiffDetail,
+					  uniqueFiles map[string]struct{},
+					  totalWriteLines, totalReadChars, totalWriteChars, totalDiffChars *int) {
+
+	parentUUID := ""
+	if logEntry.ParentUUID != nil {
+		parentUUID = *logEntry.ParentUUID
 	}
-	return "", false
+	toolName := uuidToToolName[parentUUID]
+	timestamp := ParseTimestamp(logEntry.Timestamp)
+
+	// Try to parse different types of tool results
+	switch strings.ToLower(toolName) {
+	case "read":
+		processReadResult(logEntry.ToolUseResult, timestamp, readDetails, uniqueFiles, totalReadChars)
+	case "write":
+		processWriteResult(logEntry.ToolUseResult, timestamp, writeDetails, uniqueFiles, totalWriteLines, totalWriteChars)
+	case "edit":
+		processEditResult(logEntry.ToolUseResult, timestamp, applyDiffDetails, uniqueFiles, totalDiffChars)
+	}
+}
+
+// processReadResult processes Read tool results
+func processReadResult(resultRaw json.RawMessage, timestamp int64,
+					  readDetails *[]ClaudeCodeAnalysisReadDetail,
+					  uniqueFiles map[string]struct{}, totalReadChars *int) {
+	
+	var readResult ClaudeCodeLogToolUseResultRead
+	if err := json.Unmarshal(resultRaw, &readResult); err != nil {
+		log.Printf("[WARN] Failed to parse read result: %v", err)
+		return
+	}
+
+	if readResult.File.FilePath != "" {
+		uniqueFiles[readResult.File.FilePath] = struct{}{}
+		chars := utf8.RuneCountInString(readResult.File.Content)
+		
+		*readDetails = append(*readDetails, ClaudeCodeAnalysisReadDetail{
+			ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+				FilePath:       readResult.File.FilePath,
+				LineCount:      readResult.File.NumLines,
+				CharacterCount: chars,
+				Timestamp:      timestamp,
+			},
+		})
+		*totalReadChars += chars
+	}
+}
+
+// processWriteResult processes Write tool results  
+func processWriteResult(resultRaw json.RawMessage, timestamp int64,
+					   writeDetails *[]ClaudeCodeAnalysisWriteDetail,
+					   uniqueFiles map[string]struct{}, 
+					   totalWriteLines, totalWriteChars *int) {
+	
+	var writeResult ClaudeCodeLogToolUseResultCreate
+	if err := json.Unmarshal(resultRaw, &writeResult); err != nil {
+		log.Printf("[WARN] Failed to parse write result: %v", err)
+		return
+	}
+
+	if writeResult.FilePath != "" {
+		uniqueFiles[writeResult.FilePath] = struct{}{}
+		chars := utf8.RuneCountInString(writeResult.Content)
+		lines := CountLines(writeResult.Content)
+		
+		*writeDetails = append(*writeDetails, ClaudeCodeAnalysisWriteDetail{
+			ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+				FilePath:       writeResult.FilePath,
+				LineCount:      lines,
+				CharacterCount: chars,
+				Timestamp:      timestamp,
+			},
+			Content: writeResult.Content,
+		})
+		*totalWriteChars += chars
+		*totalWriteLines += lines
+	}
+}
+
+// processEditResult processes Edit tool results
+func processEditResult(resultRaw json.RawMessage, timestamp int64,
+					  applyDiffDetails *[]ClaudeCodeAnalysisApplyDiffDetail,
+					  uniqueFiles map[string]struct{}, totalDiffChars *int) {
+	
+	var editResult ClaudeCodeLogToolUseResultEdit
+	if err := json.Unmarshal(resultRaw, &editResult); err != nil {
+		log.Printf("[WARN] Failed to parse edit result: %v", err)
+		return
+	}
+
+	if editResult.FilePath != "" {
+		uniqueFiles[editResult.FilePath] = struct{}{}
+		chars := utf8.RuneCountInString(editResult.NewString)
+		lines := CountLines(editResult.NewString)
+		
+		*applyDiffDetails = append(*applyDiffDetails, ClaudeCodeAnalysisApplyDiffDetail{
+			ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+				FilePath:       editResult.FilePath,
+				LineCount:      lines,
+				CharacterCount: chars,
+				Timestamp:      timestamp,
+			},
+			OldString: editResult.OldString,
+			NewString: editResult.NewString,
+		})
+		*totalDiffChars += chars
+	}
 }
 
 // getGitRemoteOriginURL attempts to read .git/config under cwd and extract remote.origin.url
