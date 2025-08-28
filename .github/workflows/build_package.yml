@@ -7,17 +7,18 @@ on:
 
 permissions: write-all
 
-env:
-  NODE_TLS_REJECT_UNAUTHORIZED: 0
-  GOPROXY: http://oa-mirror.mediatek.inc/repository/golang
-  http_proxy: http://mtkdrone01.mediatek.inc:23984
-  https_proxy: http://mtkdrone01.mediatek.inc:23984
-
 jobs:
-  build_package:
+  build_package_gitea:
     name: Build Package
+    if: ${{ contains(github.server_url, 'gitea') }}
     runs-on: ubuntu-latest
     container: catthehacker/ubuntu:act-20.04  # Uncomment it if you use it on Gitea
+
+    env:
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+      GOPROXY: http://oa-mirror.mediatek.inc/repository/golang
+      http_proxy: http://mtkdrone01.mediatek.inc:23984
+      https_proxy: http://mtkdrone01.mediatek.inc:23984
 
     steps:
       - name: Disable SSL Verify
@@ -57,5 +58,46 @@ jobs:
         uses: akkuman/gitea-release-action@v1
         with:
           tag_name: ${{ github.ref_name }}
+          files: |-
+            ./build/*
+
+  build_package_github:
+    name: Build Package
+    if: ${{ contains(github.server_url, 'github') }}
+    runs-on: ubuntu-latest
+    # container: catthehacker/ubuntu:act-20.04  # Uncomment it if you use it on Gitea
+
+    steps:
+      - name: Disable SSL Verify
+        run: git config --global http.sslVerify false
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Build Package
+        run: |
+          make package-all
+
+      - uses: release-drafter/release-drafter@v6
+        id: drafter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-name: release-drafter.yml
+          publish: false
+          disable-autolabeler: false
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
           files: |-
             ./build/*

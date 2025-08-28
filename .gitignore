@@ -34,3 +34,4 @@ go.work.sum
 
 /installer
 /claude_analysis
+/examples/logs/
