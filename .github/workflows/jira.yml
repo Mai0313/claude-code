@@ -14,9 +14,10 @@ on:
 
 jobs:
   jira-branch:
+    name: create new branch
     runs-on: ubuntu-latest
     if: github.event.ref_type == 'branch' && contains(github.server_url, 'gitea')
-    name: create new branch
+
     steps:
       - name: transition to in progress on branch event
         uses: appleboy/jira-action@v0.2.0
@@ -26,12 +27,13 @@ jobs:
           token: ${{ secrets.JIRA_TOKEN }}
           ref: ${{ github.ref_name }}
           transition: Start Progress
-          assignee: ${{ gitea.actor }}
+          assignee: ${{ github.actor }}
 
   open-pull-request:
+    name: transition to in review when pull request is created
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request_target' && github.event.action == 'opened' && contains(github.server_url, 'gitea')
-    name: transition to in review when pull request is created
+
     steps:
       - name: transition to in review when pull request is created
         uses: appleboy/jira-action@v0.2.0
@@ -49,9 +51,10 @@ jobs:
             Pull request: *${{ github.event.pull_request.title }}*
 
   closed-pull-request:
+    name: closed pull request
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request_target' && github.event.action == 'closed' && github.event.pull_request.merged == false && contains(github.server_url, 'gitea')
-    name: closed pull request
+
     steps:
       - name: closed pull request
         uses: appleboy/jira-action@v0.2.0
@@ -68,9 +71,10 @@ jobs:
             Pull request: *${{ github.event.pull_request.title }}*
 
   jira-push-event:
+    name: transition to in progress on push event
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && contains(github.server_url, 'gitea')
-    name: transition to in progress on push event
+
     steps:
       - name: transition to in progress on push event
         uses: appleboy/jira-action@v0.2.0
@@ -89,9 +93,10 @@ jobs:
             ${{ github.event.head_commit.message }}
 
   jira-merge-request:
+    name: transition to Merge and Deploy
     runs-on: ubuntu-latest
     if: ${{ github.event.pull_request.merged }} && contains(github.server_url, 'gitea')
-    name: transition to Merge and Deploy
+
     steps:
       - name: transition to in review
         uses: appleboy/jira-action@v0.2.0
