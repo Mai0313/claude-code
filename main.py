@@ -245,18 +245,16 @@ console = Console()
 
 
 def analyze_conversations() -> None:
-    conversation_folder = Path("./examples/logs")
-    conversation_paths = conversation_folder.rglob("*.jsonl")
-    for conversation_path in conversation_paths:
-        conversations = orjsonl.load(conversation_path)
-        for conversation in conversations:
-            try:
-                claude_code_log = ClaudeCodeLog(**conversation)
-                console.print(claude_code_log)
-            except ValidationError as e:
-                console.print(e)
-                console.print(conversation_path.as_posix())
-                break  # 遇到錯誤就停止，方便調試
+    conversation_path = Path("./examples/test_conversation.jsonl")
+    conversations = orjsonl.load(conversation_path)
+    for conversation in conversations:
+        try:
+            claude_code_log = ClaudeCodeLog(**conversation)
+            console.print(claude_code_log)
+        except ValidationError as e:
+            console.print(e)
+            console.print(conversation_path.as_posix())
+            break  # 遇到錯誤就停止，方便調試
 
 
 if __name__ == "__main__":
