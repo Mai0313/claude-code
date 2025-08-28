@@ -17,7 +17,7 @@ func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
 	if !ok {
 		t.Fatalf("failed to get caller info")
 	}
-	jsonlPath := filepath.Join(filepath.Dir(thisFile), "test_conversation.jsonl")
+	jsonlPath := filepath.Join(filepath.Dir(filepath.Dir(thisFile)), "examples", "test_conversation.jsonl")
 
 	records, err := telemetry.ReadJSONL(jsonlPath)
 	if err != nil {
