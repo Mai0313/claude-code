@@ -1,9 +1,9 @@
 package telemetry
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -45,28 +45,18 @@ func ReadJSONL(filename string) ([]map[string]interface{}, error) {
 	defer file.Close()
 
 	var results []map[string]interface{}
-	scanner := bufio.NewScanner(file)
-	lineNumber := 0
-
-	for scanner.Scan() {
-		lineNumber++
-		line := strings.TrimSpace(scanner.Text())
-
-		// 跳過空行
-		if line == "" {
-			continue
+	dec := json.NewDecoder(file)
+	index := 0
+	for {
+		var obj map[string]interface{}
+		if err := dec.Decode(&obj); err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("解析第 %d 行 JSON 失敗: %v", index+1, err)
 		}
-
-		var jsonObj map[string]interface{}
-		if err := json.Unmarshal([]byte(line), &jsonObj); err != nil {
-			return nil, fmt.Errorf("解析第 %d 行 JSON 失敗: %v", lineNumber, err)
-		}
-
-		results = append(results, jsonObj)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("讀取文件時發生錯誤: %v", err)
+		results = append(results, obj)
+		index++
 	}
 
 	return results, nil
