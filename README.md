@@ -281,3 +281,11 @@ After installation is complete, you can:
 4. **Update Settings**: Edit `~/.claude/settings.json`
 
 Enjoy using Claude Code! 🎉
+
+---
+
+## About claude_analysis parsing
+
+- The `cmd/claude_analysis` tool now parses JSONL by first normalizing each line into a typed structure, then aggregating.
+- This makes downstream logic in Go simpler and more robust when reading tool results.
+- Large JSONL lines are supported by an increased scanner buffer.

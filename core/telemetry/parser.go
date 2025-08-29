@@ -62,6 +62,17 @@ func AggregateConversationStats(records []map[string]interface{}) []ApiConversat
 		return []ApiConversationStats{}
 	}
 
+	// Normalize each generic record into a strongly typed struct first
+	typed := make([]*ClaudeCodeLog, 0, len(records))
+	for _, rec := range records {
+		cl, err := normalizeRecord(rec)
+		if err != nil {
+			// skip malformed lines rather than failing the whole aggregation
+			continue
+		}
+		typed = append(typed, cl)
+	}
+
 	// Map assistant message UUID -> tool name (e.g., "Read", "Write")
 	uuidToToolName := make(map[string]string)
 	toolCallCounts := make(map[string]int)
@@ -73,39 +84,27 @@ func AggregateConversationStats(records []map[string]interface{}) []ApiConversat
 	)
 
 	// First pass: extract context (cwd, sessionId), collect tool calls
-	for _, rec := range records {
-		if v, ok := rec["cwd"].(string); ok && v != "" && cwd == "" {
+	for _, rec := range typed {
+		if rec == nil {
+			continue
+		}
+		if v := rec.Cwd; v != "" && cwd == "" {
 			cwd = v
 		}
-		if v, ok := rec["sessionId"].(string); ok && v != "" && sessionID == "" {
+		if v := rec.SessionID; v != "" && sessionID == "" {
 			sessionID = v
 		}
-		if ts, ok := rec["timestamp"].(string); ok {
-			if ms := parseISOMillis(ts); ms > lastMs {
-				lastMs = ms
-			}
+		if ms := parseISOMillis(rec.Timestamp); ms > lastMs {
+			lastMs = ms
 		}
 
 		// Parse assistant tool_use events
-		recType, _ := rec["type"].(string)
-		if recType == "assistant" {
-			uuid, _ := rec["uuid"].(string)
-			msg, _ := rec["message"].(map[string]interface{})
-			if msg != nil {
-				if arr, ok := msg["content"].([]interface{}); ok {
-					for _, item := range arr {
-						m, _ := item.(map[string]interface{})
-						if m == nil {
-							continue
-						}
-						if t, _ := m["type"].(string); t == "tool_use" {
-							name, _ := m["name"].(string)
-							if name != "" {
-								uuidToToolName[uuid] = name
-								toolCallCounts[name]++
-							}
-						}
-					}
+		if rec.Type == "assistant" {
+			uuid := rec.UUID
+			for _, item := range rec.Message.Content {
+				if item.Type == "tool_use" && item.Name != "" {
+					uuidToToolName[uuid] = item.Name
+					toolCallCounts[item.Name]++
 				}
 			}
 		}
@@ -121,46 +120,42 @@ func AggregateConversationStats(records []map[string]interface{}) []ApiConversat
 	var totalWriteChars int
 	var totalDiffChars int
 
-	for _, rec := range records {
-		toolRes, ok := rec["toolUseResult"].(map[string]interface{})
-		if !ok || toolRes == nil {
+	for _, rec := range typed {
+		if rec == nil || rec.ToolUseResult == nil {
 			continue
 		}
-		parentUUID, _ := rec["parentUuid"].(string)
+		parentUUID := rec.ParentUUID
 		toolName := uuidToToolName[parentUUID]
 
-		// Attempt to extract filePath/content from either nested file object or top-level fields
+		// Extract filePath/content from either nested file object or top-level fields
 		var filePath string
 		var content string
-		if fileObj, _ := toolRes["file"].(map[string]interface{}); fileObj != nil {
-			if v, ok := tryString(fileObj["filePath"]); ok {
+		if rec.ToolUseResult.File != nil {
+			if v := rec.ToolUseResult.File.FilePath; v != "" {
 				filePath = v
 			}
-			if v, ok := tryString(fileObj["content"]); ok {
+			if v := rec.ToolUseResult.File.Content; v != "" {
 				content = v
 			}
 		}
 		if filePath == "" {
-			if v, ok := tryString(toolRes["filePath"]); ok {
+			if v := rec.ToolUseResult.FilePath; v != "" {
 				filePath = v
 			}
 		}
 		if content == "" {
-			if v, ok := tryString(toolRes["content"]); ok {
+			if v := rec.ToolUseResult.Content; v != "" {
 				content = v
 			}
 		}
 		// Fallback: if still no content but there is a structuredPatch, serialize it
-		if content == "" {
-			if sp, ok := toolRes["structuredPatch"]; ok && sp != nil {
-				if b, err := json.Marshal(sp); err == nil {
-					content = string(b)
-				}
+		if content == "" && rec.ToolUseResult.StructuredPatch != nil {
+			if b, err := json.Marshal(rec.ToolUseResult.StructuredPatch); err == nil {
+				content = string(b)
 			}
 		}
 
-		tsStr, _ := rec["timestamp"].(string)
-		tsMs := parseISOMillis(tsStr)
+		tsMs := parseISOMillis(rec.Timestamp)
 
 		if filePath != "" {
 			uniqueFiles[filePath] = struct{}{}
@@ -169,7 +164,6 @@ func AggregateConversationStats(records []map[string]interface{}) []ApiConversat
 		switch strings.ToLower(toolName) {
 		case "read":
 			if content == "" {
-				// nothing to record
 				continue
 			}
 			chars := utf8.RuneCountInString(content)
@@ -262,21 +256,6 @@ func countLines(s string) int {
 		}
 	}
 	return lines
-}
-
-func tryString(v interface{}) (string, bool) {
-	s, ok := v.(string)
-	if ok {
-		return s, true
-	}
-	// sometimes nested value is JSON-encoded; try to stringify
-	if v == nil {
-		return "", false
-	}
-	if b, err := json.Marshal(v); err == nil {
-		return string(b), true
-	}
-	return "", false
 }
 
 // getGitRemoteOriginURL attempts to read .git/config under cwd and extract remote.origin.url
