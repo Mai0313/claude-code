@@ -1,16 +1,13 @@
-package tests
+package config
 
 import (
 	"os"
 	"testing"
-
-	"claude_analysis/core/config"
-	"claude_analysis/core/telemetry"
 )
 
 func TestSSLConfigDefaultSkipped(t *testing.T) {
 	// 測試默認配置應該跳過 SSL 驗證
-	cfg := config.Default()
+	cfg := Default()
 
 	if !cfg.API.SkipSSLVerify {
 		t.Error("Expected SkipSSLVerify to be true by default")
@@ -28,7 +25,7 @@ func TestSSLConfigFromEnv(t *testing.T) {
 	os.Setenv("SKIP_SSL_VERIFY", "false")
 	defer os.Unsetenv("SKIP_SSL_VERIFY")
 
-	cfg := config.Default()
+	cfg := Default()
 
 	if cfg.API.SkipSSLVerify {
 		t.Error("Expected SkipSSLVerify to be false when SKIP_SSL_VERIFY=false")
@@ -65,38 +62,13 @@ func TestSSLConfigFromEnvVariations(t *testing.T) {
 			os.Setenv(tc.envVar, tc.value)
 			defer os.Unsetenv(tc.envVar)
 
-			cfg := config.Default()
+			cfg := Default()
 
 			if cfg.API.SkipSSLVerify != tc.expected {
 				t.Errorf("Expected SkipSSLVerify to be %v for %s=%s, got %v",
 					tc.expected, tc.envVar, tc.value, cfg.API.SkipSSLVerify)
 			}
 		})
-	}
-}
-
-func TestTelemetryClientWithSSLConfig(t *testing.T) {
-	// 測試 telemetry client 是否正確使用 SSL 配置
-
-	// 測試跳過 SSL 驗證的配置
-	cfg := config.Default()
-	cfg.API.SkipSSLVerify = true
-	cfg.API.InsecureSkipTLS = true
-
-	client := telemetry.New(cfg)
-
-	if client == nil {
-		t.Error("Expected client to be created successfully")
-	}
-
-	// 測試啟用 SSL 驗證的配置
-	cfg.API.SkipSSLVerify = false
-	cfg.API.InsecureSkipTLS = false
-
-	client2 := telemetry.New(cfg)
-
-	if client2 == nil {
-		t.Error("Expected client to be created successfully with SSL verification enabled")
 	}
 }
 
@@ -113,7 +85,7 @@ func TestAlternativeSSLEnvVars(t *testing.T) {
 	os.Setenv("INSECURE_SKIP_TLS", "true")
 	defer os.Unsetenv("INSECURE_SKIP_TLS")
 
-	cfg := config.Default()
+	cfg := Default()
 
 	if !cfg.API.SkipSSLVerify {
 		t.Error("Expected SkipSSLVerify to be true when INSECURE_SKIP_TLS=true")

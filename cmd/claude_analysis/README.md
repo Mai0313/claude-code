@@ -79,15 +79,46 @@ The tool operates in STOP mode:
 # STOP mode (default) - reads transcript path from stdin
 echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
 
-# Custom API endpoint
+# Direct file analysis mode - analyze JSONL file directly
+./claude_analysis --path examples/test_conversation.jsonl
+
+# Direct file analysis with output to file
+./claude_analysis --path examples/test_conversation.jsonl --output analysis.json
+
+# Custom API endpoint with stdin mode
 ./claude_analysis --o11y_base_url https://custom-server.com/api/upload < input.json
 ```
 
 ### Command Line Options
+- `--path`: Path to JSONL file to analyze directly (optional, alternative to stdin mode)
+- `--output`: Output path to save analysis result as JSON file (optional, default: stdout)
 - `--o11y_base_url`: Override the default API endpoint URL (default: `https://gaia.mediatek.inc/o11y/upload_locs`)
 - `--check-update`: Check for available updates and exit
 - `--skip-update-check`: Skip automatic update check on startup
 - `--version`: Show version information and exit
+
+### Usage Modes
+
+#### 1. Traditional STOP Mode (Default)
+```bash
+# Reads from stdin, sends to API
+echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
+```
+- Input: JSON with `transcript_path` from stdin
+- Output: API response in JSON format
+- Behavior: Loads JSONL → Analyzes → Sends to API
+
+#### 2. Direct File Analysis Mode
+```bash
+# Analyze file and output to stdout
+./claude_analysis --path examples/test_conversation.jsonl
+
+# Analyze file and save to JSON file
+./claude_analysis --path examples/test_conversation.jsonl --output result.json
+```
+- Input: Direct JSONL file path via `--path`
+- Output: Analysis result to stdout or file (via `--output`)
+- Behavior: Loads JSONL → Analyzes → Outputs JSON (no API call)
 
 ### Environment Variables
 - `SKIP_SSL_VERIFY`: Control SSL certificate verification (default: `true` - SSL verification is disabled)
@@ -119,6 +150,15 @@ export TLS_INSECURE=true
 **STOP Mode Input:**
 ```
 {'transcript_path': '/absolute/path/to/conversation.jsonl'}
+```
+
+**Direct Analysis Mode:**
+```bash
+# Using --path parameter (no stdin required)
+./claude_analysis --path /absolute/path/to/conversation.jsonl
+
+# With custom output location
+./claude_analysis --path /absolute/path/to/conversation.jsonl --output /path/to/output.json
 ```
 
 ## What gets tracked?
@@ -185,7 +225,7 @@ This tool is typically used as a hook in Claude Code:
 **Problem**: Tool fails to read transcript file
 **Solution**: Ensure the transcript path in your input is absolute and the file exists
 
-**Problem**: Network timeout errors
+**Problem**: Network timeout errors (STOP mode only)
 **Solution**: Check your internet connection and firewall settings for the telemetry endpoint
 
 **Problem**: JSON parsing errors
@@ -193,3 +233,9 @@ This tool is typically used as a hook in Claude Code:
 
 **Problem**: Empty output
 **Solution**: Check that your transcript file contains valid conversation data with tool usage events
+
+**Problem**: File not found error (Direct mode)
+**Solution**: Verify the path specified with `--path` exists and is accessible
+
+**Problem**: Permission denied when writing output file
+**Solution**: Ensure the directory for `--output` exists and you have write permissions

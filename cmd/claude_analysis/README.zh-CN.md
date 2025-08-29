@@ -27,15 +27,46 @@ Claude Analysis 自动：
 # STOP 模式（默认）- 从标准输入读取记录路径
 echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
 
-# 自定义 API 端点
+# 直接文件分析模式 - 直接分析 JSONL 文件
+./claude_analysis --path examples/test_conversation.jsonl
+
+# 直接文件分析并输出到文件
+./claude_analysis --path examples/test_conversation.jsonl --output analysis.json
+
+# 自定义 API 端点与 stdin 模式
 ./claude_analysis --o11y_base_url https://custom-server.com/api/upload < input.json
 ```
 
 ### 命令行选项
+- `--path`: 直接分析的 JSONL 文件路径（可选，替代 stdin 模式）
+- `--output`: 保存分析结果的 JSON 文件路径（可选，默认：stdout）
 - `--o11y_base_url`: 覆盖默认的 API 端点 URL（默认值：`https://gaia.mediatek.inc/o11y/upload_locs`）
 - `--check-update`: 检查可用更新并退出
 - `--skip-update-check`: 跳过启动时的自动更新检查
 - `--version`: 显示版本信息并退出
+
+### 使用模式
+
+#### 1. 传统 STOP 模式（默认）
+```bash
+# 从 stdin 读取，发送到 API
+echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
+```
+- 输入：从 stdin 接收包含 `transcript_path` 的 JSON
+- 输出：JSON 格式的 API 响应
+- 行为：加载 JSONL → 分析 → 发送到 API
+
+#### 2. 直接文件分析模式
+```bash
+# 分析文件并输出到 stdout
+./claude_analysis --path examples/test_conversation.jsonl
+
+# 分析文件并保存到 JSON 文件
+./claude_analysis --path examples/test_conversation.jsonl --output result.json
+```
+- 输入：通过 `--path` 直接指定 JSONL 文件路径
+- 输出：分析结果到 stdout 或文件（通过 `--output`）
+- 行为：加载 JSONL → 分析 → 输出 JSON（无 API 调用）
 
 ### 环境变量
 - 也可以在工作目录中创建包含环境设置的 `.env` 文件
@@ -45,6 +76,15 @@ echo "{'transcript_path': '/path/to/conversation.jsonl'}" | ./claude_analysis
 **STOP 模式输入：**
 ```
 {'transcript_path': '/absolute/path/to/conversation.jsonl'}
+```
+
+**直接分析模式：**
+```bash
+# 使用 --path 参数（不需要 stdin）
+./claude_analysis --path /absolute/path/to/conversation.jsonl
+
+# 带自定义输出位置
+./claude_analysis --path /absolute/path/to/conversation.jsonl --output /path/to/output.json
 ```
 
 ## 跟踪什么内容？
@@ -160,7 +200,7 @@ Claude Analysis 包含自动更新检查功能，通过 Gitea API 检查新版�
 **问题**：工具无法读取记录文件
 **解决方案**：确保输入中的记录路径是绝对路径且文件存在
 
-**问题**：网络超时错误
+**问题**：网络超时错误（仅 STOP 模式）
 **解决方案**：检查您的网络连接和遥测端点的防火墙设置
 
 **问题**：JSON 解析错误
@@ -168,3 +208,9 @@ Claude Analysis 包含自动更新检查功能，通过 Gitea API 检查新版�
 
 **问题**：空输出
 **解决方案**：检查您的记录文件是否包含带有工具使用事件的有效对话数据
+
+**问题**：文件未找到错误（直接模式）
+**解决方案**：验证通过 `--path` 指定的路径存在且可访问
+
+**问题**：写入输出文件时权限被拒绝
+**解决方案**：确保 `--output` 的目录存在且您有写入权限

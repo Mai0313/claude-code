@@ -1,4 +1,4 @@
-package tests
+package telemetry
 
 import (
 	"encoding/json"
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"claude_analysis/core/config"
-	"claude_analysis/core/telemetry"
 )
 
 func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
@@ -17,14 +16,16 @@ func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
 	if !ok {
 		t.Fatalf("failed to get caller info")
 	}
-	jsonlPath := filepath.Join(filepath.Dir(filepath.Dir(thisFile)), "examples", "test_conversation.jsonl")
+	// Navigate from core/telemetry to project root
+	projectRoot := filepath.Dir(filepath.Dir(filepath.Dir(thisFile)))
+	jsonlPath := filepath.Join(projectRoot, "examples", "test_conversation.jsonl")
 
-	records, err := telemetry.ReadJSONL(jsonlPath)
+	records, err := ReadJSONL(jsonlPath)
 	if err != nil {
 		t.Fatalf("ReadJSONL error: %v", err)
 	}
 
-	analysis := telemetry.AnalyzeConversations(records)
+	analysis := AnalyzeConversations(records)
 	if len(analysis.Records) != 1 {
 		t.Fatalf("expected 1 analysis record, got %d", len(analysis.Records))
 	}
@@ -154,7 +155,7 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 		},
 	}
 
-	analysis := telemetry.AnalyzeConversations(recs)
+	analysis := AnalyzeConversations(recs)
 	if len(analysis.Records) != 1 {
 		t.Fatalf("expected 1 analysis record, got %d", len(analysis.Records))
 	}
@@ -217,7 +218,7 @@ func TestParser_ComprehensiveSyntheticEvents(t *testing.T) {
 }
 
 func TestParser_EmptyRecords_ReturnsEmpty(t *testing.T) {
-	analysis := telemetry.AnalyzeConversations(nil)
+	analysis := AnalyzeConversations(nil)
 	if len(analysis.Records) != 1 {
 		t.Fatalf("expected 1 record (empty) for empty input, got %d", len(analysis.Records))
 	}
@@ -230,4 +231,4 @@ func TestParser_EmptyRecords_ReturnsEmpty(t *testing.T) {
 
 // Integration tests that execute the binary and hit network are purposely omitted
 // to keep tests hermetic. End-to-end behavior is covered by unit tests using
-// telemetry.AnalyzeConversations and real sample JSONL lines.
+// AnalyzeConversations and real sample JSONL lines.
