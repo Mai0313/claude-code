@@ -41,11 +41,10 @@ jobs:
           make test
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: test-reports
           path: |
-            .github/reports/coverage.out
             .github/reports/coverage.html
             .github/reports/test-results.xml
 
@@ -87,11 +86,10 @@ jobs:
           make test
 
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: test-reports
           path: |
-            .github/reports/coverage.out
             .github/reports/coverage.html
             .github/reports/test-results.xml
 
