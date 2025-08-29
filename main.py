@@ -1,8 +1,8 @@
-from typing import Union, Literal, Annotated
+import json
+from typing import Literal, Annotated, TypeAlias
 import getpass
 from pathlib import Path
 from datetime import datetime, timezone
-import json
 
 import orjsonl
 from pydantic import Field, BaseModel, ValidationError
@@ -125,13 +125,13 @@ class ClaudeCodeLogContentInputWrite(BaseModel):
     content: str
 
 
-ClaudeCodeLogToolInput = Union[
-    ClaudeCodeLogContentInputTodoWrite,
-    ClaudeCodeLogContentInputRead,
-    ClaudeCodeLogContentInputEdit,
-    ClaudeCodeLogContentInputBash,
-    ClaudeCodeLogContentInputWrite,
-]
+ClaudeCodeLogToolInput: TypeAlias = (
+    ClaudeCodeLogContentInputTodoWrite
+    | ClaudeCodeLogContentInputRead
+    | ClaudeCodeLogContentInputEdit
+    | ClaudeCodeLogContentInputBash
+    | ClaudeCodeLogContentInputWrite
+)
 
 
 class ClaudeCodeLogContentToolUse(BaseModel):
@@ -152,7 +152,7 @@ class ClaudeCodeLogContentText(BaseModel):
     text: str
 
 
-ClaudeCodeLogContent = Annotated[
+ClaudeCodeLogContent: TypeAlias = Annotated[
     ClaudeCodeLogContentText | ClaudeCodeLogContentToolUse | ClaudeCodeLogContentToolResult,
     Field(discriminator="type"),
 ]
@@ -220,13 +220,13 @@ class ClaudeCodeLogToolUseResultEdit(BaseModel):
     replaceAll: bool
 
 
-ClaudeCodeLogToolUseResult = Union[
-    ClaudeCodeLogToolUseResultTodo,
-    ClaudeCodeLogToolUseResultCreate,
-    ClaudeCodeLogToolUseResultRead,
-    ClaudeCodeLogToolUseResultBash,
-    ClaudeCodeLogToolUseResultEdit,
-]
+ClaudeCodeLogToolUseResult: TypeAlias = (
+    ClaudeCodeLogToolUseResultTodo
+    | ClaudeCodeLogToolUseResultCreate
+    | ClaudeCodeLogToolUseResultRead
+    | ClaudeCodeLogToolUseResultBash
+    | ClaudeCodeLogToolUseResultEdit
+)
 
 
 # ============================================================================
@@ -250,7 +250,7 @@ class ClaudeCodeLogAssistantMessage(BaseModel):
     usage: ClaudeCodeLogMessageUsage
 
 
-ClaudeCodeLogMessage = Annotated[
+ClaudeCodeLogMessage: TypeAlias = Annotated[
     ClaudeCodeLogUserMessage | ClaudeCodeLogAssistantMessage, Field(discriminator="role")
 ]
 
@@ -275,7 +275,8 @@ console = Console()
 
 def analyze_conversations() -> None:
     conversation_path = Path("./examples/test_conversation.jsonl")
-    output_path = Path("./examples/claude_code_log.json")
+    output_path = Path(f"./examples/parsed/{conversation_path.stem}_parsed.json")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     conversations = orjsonl.load(conversation_path)
 
@@ -341,7 +342,7 @@ def analyze_conversations() -> None:
                     elif item.name == "Bash":
                         tool_counts.Bash += 1
                         # Record runCommandDetails from the input (no file; use cwd as filePath)
-                        bash_input = item.input  # type: ignore[assignment]
+                        bash_input = item.input
                         if isinstance(bash_input, ClaudeCodeLogContentInputBash):
                             run_details.append(
                                 ClaudeCodeAnalysisRunCommandDetail(
