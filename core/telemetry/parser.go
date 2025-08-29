@@ -10,276 +10,315 @@ import (
 	"unicode/utf8"
 )
 
-// WriteToFileDetail mirrors the target schema for write operations
-type WriteToFileDetail struct {
-	FilePath        string `json:"filePath"`
-	LineCount       int    `json:"lineCount"`
-	CharacterCount  int    `json:"characterCount"`
-	Timestamp       int64  `json:"timestamp"`
-	AiOutputContent string `json:"aiOutputContent"`
-	FileContent     string `json:"fileContent"`
+// ClaudeCodeAnalysisDetailBase - 基础详情模型，包含共同的必需字段
+type ClaudeCodeAnalysisDetailBase struct {
+	FilePath       string `json:"filePath"`
+	LineCount      int    `json:"lineCount"`
+	CharacterCount int    `json:"characterCount"`
+	Timestamp      int64  `json:"timestamp"`
 }
 
-// ReadFileDetail mirrors the target schema for read operations
-type ReadFileDetail struct {
-	FilePath        string `json:"filePath"`
-	CharacterCount  int    `json:"characterCount"`
-	Timestamp       int64  `json:"timestamp"`
-	AiOutputContent string `json:"aiOutputContent"`
-	FileContent     string `json:"fileContent"`
+// ClaudeCodeAnalysisWriteDetail - writeToFileDetails: 存储完整内容
+type ClaudeCodeAnalysisWriteDetail struct {
+	ClaudeCodeAnalysisDetailBase
+	Content string `json:"content"`
 }
 
-// ApplyDiffDetail mirrors the target schema for apply-diff operations
-type ApplyDiffDetail struct {
-	FilePath        string `json:"filePath"`
-	CharacterCount  int    `json:"characterCount"`
-	Timestamp       int64  `json:"timestamp"`
-	AiOutputContent string `json:"aiOutputContent"`
-	FileContent     string `json:"fileContent"`
+// ClaudeCodeAnalysisReadDetail - readFileDetails: 只有必需字段
+type ClaudeCodeAnalysisReadDetail struct {
+	ClaudeCodeAnalysisDetailBase
 }
 
-// ApiConversationStats is the aggregated record we will attach to payload.records
-type ApiConversationStats struct {
-	TotalUniqueFiles     int                 `json:"totalUniqueFiles"`
-	TotalWriteLines      int                 `json:"totalWriteLines"`
-	TotalReadCharacters  int                 `json:"totalReadCharacters"`
-	TotalWriteCharacters int                 `json:"totalWriteCharacters"`
-	TotalDiffCharacters  int                 `json:"totalDiffCharacters"`
-	WriteToFileDetails   []WriteToFileDetail `json:"writeToFileDetails"`
-	ReadFileDetails      []ReadFileDetail    `json:"readFileDetails"`
-	ApplyDiffDetails     []ApplyDiffDetail   `json:"applyDiffDetails"`
-	ToolCallCounts       map[string]int      `json:"toolCallCounts"`
-	TaskID               string              `json:"taskId"`
-	Timestamp            int64               `json:"timestamp"`
-	FolderPath           string              `json:"folderPath"`
-	GitRemoteURL         string              `json:"gitRemoteUrl"`
+// ClaudeCodeAnalysisApplyDiffDetail - applyDiffDetails: 保留 old_string/new_string
+type ClaudeCodeAnalysisApplyDiffDetail struct {
+	ClaudeCodeAnalysisDetailBase
+	OldString string `json:"old_string"`
+	NewString string `json:"new_string"`
 }
 
-// AggregateConversationStats transforms raw JSONL event maps into a single aggregated stats record.
-// It is designed to be called right after ReadJSONL without changing core logic elsewhere.
-func AggregateConversationStats(records []map[string]interface{}) []ApiConversationStats {
-	if len(records) == 0 {
-		return []ApiConversationStats{}
+// ClaudeCodeAnalysisRunCommandDetail - runCommandDetails: 存储命令和描述
+type ClaudeCodeAnalysisRunCommandDetail struct {
+	ClaudeCodeAnalysisDetailBase
+	Command     string `json:"command"`
+	Description string `json:"description"`
+}
+
+// ClaudeCodeAnalysisToolCalls - 工具调用次数计数器
+type ClaudeCodeAnalysisToolCalls struct {
+	Read      int `json:"Read"`
+	Write     int `json:"Write"`
+	Edit      int `json:"Edit"`
+	TodoWrite int `json:"TodoWrite"`
+	Bash      int `json:"Bash"`
+}
+
+// ClaudeCodeAnalysisRecord - 单个分析会话的汇总统计
+type ClaudeCodeAnalysisRecord struct {
+	TotalUniqueFiles     int                                  `json:"totalUniqueFiles"`
+	TotalWriteLines      int                                  `json:"totalWriteLines"`
+	TotalReadCharacters  int                                  `json:"totalReadCharacters"`
+	TotalWriteCharacters int                                  `json:"totalWriteCharacters"`
+	TotalDiffCharacters  int                                  `json:"totalDiffCharacters"`
+	WriteToFileDetails   []ClaudeCodeAnalysisWriteDetail      `json:"writeToFileDetails"`
+	ReadFileDetails      []ClaudeCodeAnalysisReadDetail       `json:"readFileDetails"`
+	ApplyDiffDetails     []ClaudeCodeAnalysisApplyDiffDetail  `json:"applyDiffDetails"`
+	RunCommandDetails    []ClaudeCodeAnalysisRunCommandDetail `json:"runCommandDetails"`
+	ToolCallCounts       ClaudeCodeAnalysisToolCalls          `json:"toolCallCounts"`
+	TaskID               string                               `json:"taskId"`
+	Timestamp            int64                                `json:"timestamp"`
+	FolderPath           string                               `json:"folderPath"`
+	GitRemoteURL         string                               `json:"gitRemoteUrl"`
+}
+
+// ClaudeCodeAnalysis - 顶级分析负载
+type ClaudeCodeAnalysis struct {
+	User            string                     `json:"user"`
+	ExtensionName   string                     `json:"extensionName"`
+	InsightsVersion string                     `json:"insightsVersion"`
+	MachineID       string                     `json:"machineId"`
+	Records         []ClaudeCodeAnalysisRecord `json:"records"`
+}
+
+// ClaudeCodeLog - 对应 Python 中的 ClaudeCodeLog 模型
+type ClaudeCodeLog struct {
+	ParentUUID    *string     `json:"parentUuid"`
+	IsSidechain   bool        `json:"isSidechain"`
+	UserType      string      `json:"userType"`
+	CWD           string      `json:"cwd"`
+	SessionID     string      `json:"sessionId"`
+	Version       string      `json:"version"`
+	GitBranch     string      `json:"gitBranch"`
+	Type          string      `json:"type"`
+	UUID          string      `json:"uuid"`
+	Timestamp     string      `json:"timestamp"`
+	Message       interface{} `json:"message"`
+	ToolUseResult interface{} `json:"toolUseResult,omitempty"`
+}
+
+// parseISOTimestamp 解析 ISO 时间戳为 Unix 秒数
+func parseISOTimestamp(ts string) int64 {
+	if ts == "" {
+		return 0
+	}
+	// 尝试解析不同的时间格式
+	formats := []string{
+		"2006-01-02T15:04:05.000Z", // 带毫秒的 UTC
+		time.RFC3339Nano,           // RFC3339 带纳秒
+		time.RFC3339,               // RFC3339
+		"2006-01-02T15:04:05Z",     // 不带毫秒的 UTC
 	}
 
-	// Map assistant message UUID -> tool name (e.g., "Read", "Write")
-	uuidToToolName := make(map[string]string)
-	toolCallCounts := make(map[string]int)
-
-	var (
-		cwd       string
-		sessionID string
-		lastMs    int64
-	)
-
-	// First pass: extract context (cwd, sessionId), collect tool calls
-	for _, rec := range records {
-		if v, ok := rec["cwd"].(string); ok && v != "" && cwd == "" {
-			cwd = v
+	for _, format := range formats {
+		if t, err := time.Parse(format, ts); err == nil {
+			return t.Unix()
 		}
-		if v, ok := rec["sessionId"].(string); ok && v != "" && sessionID == "" {
-			sessionID = v
-		}
-		if ts, ok := rec["timestamp"].(string); ok {
-			if ms := parseISOMillis(ts); ms > lastMs {
-				lastMs = ms
-			}
+	}
+	return 0
+}
+
+// countLines 计算字符串中的行数
+func countLines(s string) int {
+	if s == "" {
+		return 0
+	}
+	return len(strings.Split(s, "\n"))
+}
+
+// AnalyzeConversations 分析对话，完全按照 Python 脚本的逻辑
+func AnalyzeConversations(records []map[string]interface{}) ClaudeCodeAnalysis {
+	// 累积器，用于所有要发出的记录
+	writeDetails := []ClaudeCodeAnalysisWriteDetail{}
+	readDetails := []ClaudeCodeAnalysisReadDetail{}
+	applyDiffDetails := []ClaudeCodeAnalysisApplyDiffDetail{}
+	runDetails := []ClaudeCodeAnalysisRunCommandDetail{}
+
+	toolCounts := ClaudeCodeAnalysisToolCalls{}
+	uniqueFiles := make(map[string]struct{})
+
+	totalWriteLines := 0
+	totalReadCharacters := 0
+	totalWriteCharacters := 0
+	totalDiffCharacters := 0
+
+	folderPath := ""
+	gitRemoteURL := ""
+	taskID := ""
+	lastTimestamp := int64(0)
+
+	for _, record := range records {
+		// 尝试转换为 ClaudeCodeLog 结构
+		recordJSON, err := json.Marshal(record)
+		if err != nil {
+			continue
 		}
 
-		// Parse assistant tool_use events
-		recType, _ := rec["type"].(string)
-		if recType == "assistant" {
-			uuid, _ := rec["uuid"].(string)
-			msg, _ := rec["message"].(map[string]interface{})
-			if msg != nil {
-				if arr, ok := msg["content"].([]interface{}); ok {
-					for _, item := range arr {
-						m, _ := item.(map[string]interface{})
-						if m == nil {
-							continue
-						}
-						if t, _ := m["type"].(string); t == "tool_use" {
-							name, _ := m["name"].(string)
-							if name != "" {
-								uuidToToolName[uuid] = name
-								toolCallCounts[name]++
+		var claudeCodeLog ClaudeCodeLog
+		if err := json.Unmarshal(recordJSON, &claudeCodeLog); err != nil {
+			// 跳过不符合模型的条目（例如 thinking blocks）
+			continue
+		}
+
+		// 提取基本信息
+		if folderPath == "" {
+			folderPath = claudeCodeLog.CWD
+		}
+		taskID = claudeCodeLog.SessionID
+
+		tsInt := parseISOTimestamp(claudeCodeLog.Timestamp)
+		if tsInt > lastTimestamp {
+			lastTimestamp = tsInt
+		}
+
+		// 计算工具调用（助手 tool_use 仅限）
+		if claudeCodeLog.Type == "assistant" && claudeCodeLog.Message != nil {
+			if messageMap, ok := claudeCodeLog.Message.(map[string]interface{}); ok {
+				if contentArray, ok := messageMap["content"].([]interface{}); ok {
+					for _, item := range contentArray {
+						if itemMap, ok := item.(map[string]interface{}); ok {
+							if itemType, ok := itemMap["type"].(string); ok && itemType == "tool_use" {
+								if name, ok := itemMap["name"].(string); ok {
+									switch name {
+									case "Read":
+										toolCounts.Read++
+									case "Write":
+										toolCounts.Write++
+									case "Edit":
+										toolCounts.Edit++
+									case "TodoWrite":
+										toolCounts.TodoWrite++
+									case "Bash":
+										toolCounts.Bash++
+										// 记录 runCommandDetails（从输入中，没有文件；使用 cwd 作为 filePath）
+										if inputMap, ok := itemMap["input"].(map[string]interface{}); ok {
+											command, _ := inputMap["command"].(string)
+											description, _ := inputMap["description"].(string)
+											runDetails = append(runDetails, ClaudeCodeAnalysisRunCommandDetail{
+												ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+													FilePath:       claudeCodeLog.CWD,
+													LineCount:      0,
+													CharacterCount: len(command),
+													Timestamp:      tsInt,
+												},
+												Command:     command,
+												Description: description,
+											})
+										}
+									}
+								}
 							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	// Second pass: collect tool results and build details
-	writeDetails := make([]WriteToFileDetail, 0)
-	readDetails := make([]ReadFileDetail, 0)
-	applyDiffDetails := make([]ApplyDiffDetail, 0)
-	uniqueFiles := make(map[string]struct{})
-	var totalWriteLines int
-	var totalReadChars int
-	var totalWriteChars int
-	var totalDiffChars int
-
-	for _, rec := range records {
-		toolRes, ok := rec["toolUseResult"].(map[string]interface{})
-		if !ok || toolRes == nil {
+		// 从 toolUseResult 填充各种 *Details
+		if claudeCodeLog.ToolUseResult == nil {
 			continue
 		}
-		parentUUID, _ := rec["parentUuid"].(string)
-		toolName := uuidToToolName[parentUUID]
 
-		// Attempt to extract filePath/content from either nested file object or top-level fields
-		var filePath string
-		var content string
-		if fileObj, _ := toolRes["file"].(map[string]interface{}); fileObj != nil {
-			if v, ok := tryString(fileObj["filePath"]); ok {
-				filePath = v
-			}
-			if v, ok := tryString(fileObj["content"]); ok {
-				content = v
-			}
+		turMap, ok := claudeCodeLog.ToolUseResult.(map[string]interface{})
+		if !ok {
+			continue
 		}
-		if filePath == "" {
-			if v, ok := tryString(toolRes["filePath"]); ok {
-				filePath = v
-			}
-		}
-		if content == "" {
-			if v, ok := tryString(toolRes["content"]); ok {
-				content = v
-			}
-		}
-		// Fallback: if still no content but there is a structuredPatch, serialize it
-		if content == "" {
-			if sp, ok := toolRes["structuredPatch"]; ok && sp != nil {
-				if b, err := json.Marshal(sp); err == nil {
-					content = string(b)
-				}
+
+		// Read result
+		if turType, exists := turMap["type"]; exists && turType == "text" {
+			if fileMap, ok := turMap["file"].(map[string]interface{}); ok {
+				filePath, _ := fileMap["filePath"].(string)
+				content, _ := fileMap["content"].(string)
+				numLinesFloat, _ := fileMap["numLines"].(float64)
+				numLines := int(numLinesFloat)
+
+				readDetails = append(readDetails, ClaudeCodeAnalysisReadDetail{
+					ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+						FilePath:       filePath,
+						LineCount:      numLines,
+						CharacterCount: utf8.RuneCountInString(content),
+						Timestamp:      tsInt,
+					},
+				})
+				uniqueFiles[filePath] = struct{}{}
+				totalReadCharacters += utf8.RuneCountInString(content)
 			}
 		}
 
-		tsStr, _ := rec["timestamp"].(string)
-		tsMs := parseISOMillis(tsStr)
+		// Write (create) result
+		if turType, exists := turMap["type"]; exists && turType == "create" {
+			filePath, _ := turMap["filePath"].(string)
+			content, _ := turMap["content"].(string)
+			lineCount := countLines(content)
 
-		if filePath != "" {
+			writeDetails = append(writeDetails, ClaudeCodeAnalysisWriteDetail{
+				ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+					FilePath:       filePath,
+					LineCount:      lineCount,
+					CharacterCount: utf8.RuneCountInString(content),
+					Timestamp:      tsInt,
+				},
+				Content: content,
+			})
 			uniqueFiles[filePath] = struct{}{}
+			totalWriteLines += lineCount
+			totalWriteCharacters += utf8.RuneCountInString(content)
 		}
 
-		switch strings.ToLower(toolName) {
-		case "read":
-			if content == "" {
-				// nothing to record
-				continue
+		// Edit result (applyDiff)
+		if filePath, ok := turMap["filePath"].(string); ok {
+			if newString, ok := turMap["newString"].(string); ok {
+				oldString, _ := turMap["oldString"].(string)
+				lineCount := countLines(newString)
+
+				applyDiffDetails = append(applyDiffDetails, ClaudeCodeAnalysisApplyDiffDetail{
+					ClaudeCodeAnalysisDetailBase: ClaudeCodeAnalysisDetailBase{
+						FilePath:       filePath,
+						LineCount:      lineCount,
+						CharacterCount: utf8.RuneCountInString(newString),
+						Timestamp:      tsInt,
+					},
+					OldString: oldString,
+					NewString: newString,
+				})
+				uniqueFiles[filePath] = struct{}{}
+				totalDiffCharacters += utf8.RuneCountInString(newString)
 			}
-			chars := utf8.RuneCountInString(content)
-			readDetails = append(readDetails, ReadFileDetail{
-				FilePath:        filePath,
-				CharacterCount:  chars,
-				Timestamp:       tsMs,
-				AiOutputContent: "",
-				FileContent:     content,
-			})
-			totalReadChars += chars
-		case "write":
-			if content == "" {
-				continue
-			}
-			chars := utf8.RuneCountInString(content)
-			lines := countLines(content)
-			writeDetails = append(writeDetails, WriteToFileDetail{
-				FilePath:        filePath,
-				LineCount:       lines,
-				CharacterCount:  chars,
-				Timestamp:       tsMs,
-				AiOutputContent: content,
-				FileContent:     content,
-			})
-			totalWriteChars += chars
-			totalWriteLines += lines
-		case "applydiff", "apply_diff", "applypatch":
-			if content == "" {
-				continue
-			}
-			chars := utf8.RuneCountInString(content)
-			applyDiffDetails = append(applyDiffDetails, ApplyDiffDetail{
-				FilePath:        filePath,
-				CharacterCount:  chars,
-				Timestamp:       tsMs,
-				AiOutputContent: content,
-				FileContent:     content,
-			})
-			totalDiffChars += chars
-		default:
-			// Unknown tool; ignore for details but still counted in ToolCallCounts above
 		}
 	}
 
-	gitURL := getGitRemoteOriginURL(cwd)
+	// 获取 Git remote URL
+	gitRemoteURL = getGitRemoteOriginURL(folderPath)
 
-	stats := ApiConversationStats{
+	record := ClaudeCodeAnalysisRecord{
 		TotalUniqueFiles:     len(uniqueFiles),
 		TotalWriteLines:      totalWriteLines,
-		TotalReadCharacters:  totalReadChars,
-		TotalWriteCharacters: totalWriteChars,
-		TotalDiffCharacters:  totalDiffChars,
+		TotalReadCharacters:  totalReadCharacters,
+		TotalWriteCharacters: totalWriteCharacters,
+		TotalDiffCharacters:  totalDiffCharacters,
 		WriteToFileDetails:   writeDetails,
 		ReadFileDetails:      readDetails,
 		ApplyDiffDetails:     applyDiffDetails,
-		ToolCallCounts:       toolCallCounts,
-		TaskID:               sessionID,
-		Timestamp:            lastMs,
-		FolderPath:           cwd,
-		GitRemoteURL:         gitURL,
+		RunCommandDetails:    runDetails,
+		ToolCallCounts:       toolCounts,
+		TaskID:               taskID,
+		Timestamp:            lastTimestamp,
+		FolderPath:           folderPath,
+		GitRemoteURL:         gitRemoteURL,
 	}
 
-	return []ApiConversationStats{stats}
+	// 返回顶级分析对象（注意：这里需要在调用方设置 user, extensionName 等）
+	analysis := ClaudeCodeAnalysis{
+		Records: []ClaudeCodeAnalysisRecord{record},
+	}
+
+	return analysis
 }
 
-func parseISOMillis(iso string) int64 {
-	if iso == "" {
-		return 0
-	}
-	// Try RFC3339 with or without fractional seconds
-	if t, err := time.Parse(time.RFC3339Nano, iso); err == nil {
-		return t.UnixNano() / int64(time.Millisecond)
-	}
-	if t, err := time.Parse(time.RFC3339, iso); err == nil {
-		return t.UnixNano() / int64(time.Millisecond)
-	}
-	return 0
+// AggregateConversationStats 为了向后兼容，保留原有接口但使用新逻辑
+func AggregateConversationStats(records []map[string]interface{}) []ClaudeCodeAnalysisRecord {
+	analysis := AnalyzeConversations(records)
+	return analysis.Records
 }
 
-func countLines(s string) int {
-	if s == "" {
-		return 0
-	}
-	// Count lines by splitting; handle trailing newline correctly
-	lines := 1
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			lines++
-		}
-	}
-	return lines
-}
-
-func tryString(v interface{}) (string, bool) {
-	s, ok := v.(string)
-	if ok {
-		return s, true
-	}
-	// sometimes nested value is JSON-encoded; try to stringify
-	if v == nil {
-		return "", false
-	}
-	if b, err := json.Marshal(v); err == nil {
-		return string(b), true
-	}
-	return "", false
-}
-
-// getGitRemoteOriginURL attempts to read .git/config under cwd and extract remote.origin.url
 func getGitRemoteOriginURL(cwd string) string {
 	if cwd == "" {
 		return ""

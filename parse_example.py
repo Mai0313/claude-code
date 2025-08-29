@@ -441,5 +441,5 @@ def analyze_conversations(input_path: str) -> None:
 
 
 if __name__ == "__main__":
-    input_path = "./examples/original"
+    input_path = "./examples/test_conversation.jsonl"
     analyze_conversations(input_path=input_path)

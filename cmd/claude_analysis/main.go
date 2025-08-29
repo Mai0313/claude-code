@@ -7,12 +7,64 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 
 	"claude_analysis/core/config"
 	"claude_analysis/core/telemetry"
 	"claude_analysis/core/updater"
 	"claude_analysis/core/version"
 )
+
+// parseJSONLFile 直接解析 JSONL 文件并生成分析结果
+func parseJSONLFile(filePath, outputPath string) error {
+	// 检查输入文件是否存在
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("input file does not exist: %s", filePath)
+	}
+
+	log.Printf("[INFO] Reading JSONL file: %s", filePath)
+	data, err := telemetry.ReadJSONL(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read JSONL file: %v", err)
+	}
+
+	// 使用新的分析逻辑
+	analysis := telemetry.AnalyzeConversations(data)
+
+	// Load configuration for metadata
+	cfg := config.Default()
+
+	// 设置顶级字段
+	analysis.User = cfg.UserName
+	analysis.ExtensionName = cfg.ExtensionName
+	analysis.MachineID = cfg.MachineID
+	analysis.InsightsVersion = cfg.InsightsVersion
+
+	// 将分析结果转换为 JSON
+	jsonData, err := json.MarshalIndent(analysis, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal analysis result: %v", err)
+	}
+
+	// 输出到指定位置或标准输出
+	if outputPath != "" {
+		// 创建输出目录（如果需要）
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+			return fmt.Errorf("failed to create output directory: %v", err)
+		}
+
+		log.Printf("[INFO] Writing analysis result to: %s", outputPath)
+		if err := os.WriteFile(outputPath, jsonData, 0644); err != nil {
+			return fmt.Errorf("failed to write output file: %v", err)
+		}
+		log.Printf("[INFO] Analysis completed successfully, output saved to: %s", outputPath)
+	} else {
+		// 输出到标准输出
+		fmt.Println(string(jsonData))
+	}
+
+	return nil
+}
 
 // readStdinAndSave reads JSON data from stdin, sends it to API and returns response
 func readStdinAndSave(baseURL string) map[string]interface{} {
@@ -27,7 +79,7 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 	// Create telemetry client
 	client := telemetry.New(cfg)
 
-	// 讀取 stdin
+	// 读取 stdin
 	stdinData, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		log.Printf("[ERROR] Failed to read from stdin: %v", err)
@@ -46,18 +98,26 @@ func readStdinAndSave(baseURL string) map[string]interface{} {
 		log.Printf("[ERROR] Failed to read JSONL file: %v", err)
 		return map[string]interface{}{"status": "error", "message": "failed to read JSONL file"}
 	}
-	aggregated := telemetry.AggregateConversationStats(data)
 
-	// 透過解析器聚合統計，包裝成單一物件 {user, records, ...}
+	// 使用新的分析逻辑
+	analysis := telemetry.AnalyzeConversations(data)
+
+	// 设置顶级字段
+	analysis.User = cfg.UserName
+	analysis.ExtensionName = cfg.ExtensionName
+	analysis.MachineID = cfg.MachineID
+	analysis.InsightsVersion = cfg.InsightsVersion
+
+	// 将分析结果转换为 payload
 	payload := map[string]interface{}{
-		"user":            cfg.UserName,
-		"records":         aggregated,
-		"extensionName":   cfg.ExtensionName,
-		"machineId":       cfg.MachineID,
-		"insightsVersion": cfg.InsightsVersion,
+		"user":            analysis.User,
+		"records":         analysis.Records,
+		"extensionName":   analysis.ExtensionName,
+		"machineId":       analysis.MachineID,
+		"insightsVersion": analysis.InsightsVersion,
 	}
 
-	// 送出
+	// 发送
 	response, err := client.Submit(payload)
 	if err != nil {
 		log.Printf("[ERROR] API call failed (endpoint: %s): %v", cfg.API.Endpoint, err)
@@ -85,6 +145,8 @@ func main() {
 	var showVersion = flag.Bool("version", false, "Show version information")
 	var checkUpdate = flag.Bool("check-update", false, "Check for available updates")
 	var skipUpdateCheck = flag.Bool("skip-update-check", false, "Skip automatic update check")
+	var inputPath = flag.String("path", "", "Path to JSONL file to analyze (alternative to stdin mode)")
+	var outputPath = flag.String("output", "", "Output path to save analysis result as JSON file (optional)")
 	flag.Parse()
 
 	// Handle update-related flags first
@@ -117,6 +179,17 @@ func main() {
 		fmt.Printf("Build Time: %s\n", versionInfo.BuildTime)
 		fmt.Printf("Git Commit: %s\n", versionInfo.GitCommit)
 		fmt.Printf("Go Version: %s\n", versionInfo.GoVersion)
+		return
+	}
+
+	// Handle path mode (direct JSONL file analysis)
+	if *inputPath != "" {
+		log.Printf("[INFO] Path mode: analyzing JSONL file %s", *inputPath)
+		if err := parseJSONLFile(*inputPath, *outputPath); err != nil {
+			log.Printf("[ERROR] Failed to analyze JSONL file: %v", err)
+			fmt.Printf(`{"status": "error", "message": "%s"}`, err.Error())
+			os.Exit(1)
+		}
 		return
 	}
 
