@@ -11,7 +11,7 @@ import (
 	"claude_analysis/core/config"
 )
 
-func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
+func TestParser_FromTestConversationJSONL_ValidPayload(t *testing.T) {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatalf("failed to get caller info")
@@ -36,6 +36,7 @@ func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
 	analysis.MachineID = cfg.MachineID
 	analysis.InsightsVersion = cfg.InsightsVersion
 
+	// Verify the payload can be marshaled to JSON without errors
 	payload := map[string]interface{}{
 		"user":            analysis.User,
 		"records":         analysis.Records,
@@ -43,11 +44,20 @@ func TestParser_FromTestConversationJSONL_PrintsFullPayload(t *testing.T) {
 		"machineId":       analysis.MachineID,
 		"insightsVersion": analysis.InsightsVersion,
 	}
-	pretty, err := json.MarshalIndent(payload, "", "  ")
-	if err == nil {
-		t.Logf("Full transformed payload:\n%s", string(pretty))
-	} else {
-		t.Logf("Full transformed payload (marshal error: %v)", err)
+	_, err = json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatalf("Failed to marshal payload to JSON: %v", err)
+	}
+
+	// Verify basic payload structure
+	if analysis.User == "" {
+		t.Error("User should not be empty")
+	}
+	if analysis.ExtensionName == "" {
+		t.Error("ExtensionName should not be empty")
+	}
+	if analysis.MachineID == "" {
+		t.Error("MachineID should not be empty")
 	}
 }
 
