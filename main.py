@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 import orjsonl
 from pydantic import Field, BaseModel, ValidationError
 import machineid
-from rich.console import Console
 
 # ============================================================================
 # Claude Code Analysis Models - data used for analysis stats
@@ -270,174 +269,177 @@ class ClaudeCodeLog(BaseModel):
     toolUseResult: ClaudeCodeLogToolUseResult | None = None
 
 
-console = Console()
+def analyze_conversations(input_path: str) -> None:
+    file_or_folder = Path(input_path)
+    conversation_paths = [file_or_folder]
+    if file_or_folder.is_dir():
+        conversation_paths = list(file_or_folder.rglob("*.jsonl"))
 
+    for conversation_path in conversation_paths:
+        output_path = Path(f"./examples/parsed/{conversation_path.stem}_parsed.json")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-def analyze_conversations() -> None:
-    conversation_path = Path("./examples/test_conversation.jsonl")
-    output_path = Path(f"./examples/parsed/{conversation_path.stem}_parsed.json")
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        conversations = orjsonl.load(conversation_path)
 
-    conversations = orjsonl.load(conversation_path)
+        # Accumulators for all records we will emit
+        write_details: list[ClaudeCodeAnalysisWriteDetail] = []
+        read_details: list[ClaudeCodeAnalysisReadDetail] = []
+        apply_diff_details: list[ClaudeCodeAnalysisApplyDiffDetail] = []
+        run_details: list[ClaudeCodeAnalysisRunCommandDetail] = []
 
-    # Accumulators for all records we will emit
-    write_details: list[ClaudeCodeAnalysisWriteDetail] = []
-    read_details: list[ClaudeCodeAnalysisReadDetail] = []
-    apply_diff_details: list[ClaudeCodeAnalysisApplyDiffDetail] = []
-    run_details: list[ClaudeCodeAnalysisRunCommandDetail] = []
+        tool_counts = ClaudeCodeAnalysisToolCalls()
+        unique_files: set[str] = set()
 
-    tool_counts = ClaudeCodeAnalysisToolCalls()
-    unique_files: set[str] = set()
+        total_write_lines = 0
+        total_read_characters = 0
+        total_write_characters = 0
+        total_diff_characters = 0
 
-    total_write_lines = 0
-    total_read_characters = 0
-    total_write_characters = 0
-    total_diff_characters = 0
+        folder_path = ""
+        git_remote_url = ""  # Not available in this sample; leave empty
+        task_id = ""
+        last_ts_int = 0
 
-    folder_path = ""
-    git_remote_url = ""  # Not available in this sample; leave empty
-    task_id = ""
-    last_ts_int = 0
-
-    def parse_ts(ts: str) -> int:
-        # Example: convert 2025-08-28T12:57:19.002Z to epoch seconds
-        try:
-            dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
-            return int(dt.timestamp())
-        except Exception:
+        def parse_ts(ts: str) -> int:
+            # Example: convert 2025-08-28T12:57:19.002Z to epoch seconds
             try:
-                dt = datetime.fromisoformat(ts)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
+                dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
                 return int(dt.timestamp())
             except Exception:
-                return 0
+                try:
+                    dt = datetime.fromisoformat(ts)
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    return int(dt.timestamp())
+                except Exception:
+                    return 0
 
-    for conversation in conversations:
-        try:
-            claude_code_log = ClaudeCodeLog(**conversation)
-        except ValidationError:
-            # Skip entries that don't fit the model (e.g., thinking blocks)
-            continue
+        for conversation in conversations:
+            try:
+                claude_code_log = ClaudeCodeLog(**conversation)
+            except ValidationError:
+                # Skip entries that don't fit the model (e.g., thinking blocks)
+                continue
 
-        if not folder_path:
-            folder_path = claude_code_log.cwd
-        task_id = claude_code_log.sessionId
+            if not folder_path:
+                folder_path = claude_code_log.cwd
+            task_id = claude_code_log.sessionId
 
-        ts_int = parse_ts(claude_code_log.timestamp)
-        last_ts_int = ts_int or last_ts_int
+            ts_int = parse_ts(claude_code_log.timestamp)
+            last_ts_int = ts_int or last_ts_int
 
-        # Count tool invocations (assistant tool_use only)
-        if isinstance(claude_code_log.message, ClaudeCodeLogAssistantMessage):
-            for item in claude_code_log.message.content:
-                if isinstance(item, ClaudeCodeLogContentToolUse):
-                    if item.name == "Read":
-                        tool_counts.Read += 1
-                    elif item.name == "Write":
-                        tool_counts.Write += 1
-                    elif item.name == "Edit":
-                        tool_counts.Edit += 1
-                    elif item.name == "TodoWrite":
-                        tool_counts.TodoWrite += 1
-                    elif item.name == "Bash":
-                        tool_counts.Bash += 1
-                        # Record runCommandDetails from the input (no file; use cwd as filePath)
-                        bash_input = item.input
-                        if isinstance(bash_input, ClaudeCodeLogContentInputBash):
-                            run_details.append(
-                                ClaudeCodeAnalysisRunCommandDetail(
-                                    filePath=claude_code_log.cwd,
-                                    lineCount=0,
-                                    characterCount=len(bash_input.command or ""),
-                                    timestamp=ts_int,
-                                    command=bash_input.command,
-                                    description=bash_input.description,
+            # Count tool invocations (assistant tool_use only)
+            if isinstance(claude_code_log.message, ClaudeCodeLogAssistantMessage):
+                for item in claude_code_log.message.content:
+                    if isinstance(item, ClaudeCodeLogContentToolUse):
+                        if item.name == "Read":
+                            tool_counts.Read += 1
+                        elif item.name == "Write":
+                            tool_counts.Write += 1
+                        elif item.name == "Edit":
+                            tool_counts.Edit += 1
+                        elif item.name == "TodoWrite":
+                            tool_counts.TodoWrite += 1
+                        elif item.name == "Bash":
+                            tool_counts.Bash += 1
+                            # Record runCommandDetails from the input (no file; use cwd as filePath)
+                            bash_input = item.input
+                            if isinstance(bash_input, ClaudeCodeLogContentInputBash):
+                                run_details.append(
+                                    ClaudeCodeAnalysisRunCommandDetail(
+                                        filePath=claude_code_log.cwd,
+                                        lineCount=0,
+                                        characterCount=len(bash_input.command or ""),
+                                        timestamp=ts_int,
+                                        command=bash_input.command,
+                                        description=bash_input.description,
+                                    )
                                 )
-                            )
 
-        # Fill the various *Details from toolUseResult
-        tur = claude_code_log.toolUseResult
-        if tur is None:
-            continue
+            # Fill the various *Details from toolUseResult
+            tur = claude_code_log.toolUseResult
+            if tur is None:
+                continue
 
-        # Read result
-        if isinstance(tur, ClaudeCodeLogToolUseResultRead):
-            file_path = tur.file.filePath
-            content = tur.file.content or ""
-            num_lines = tur.file.numLines
+            # Read result
+            if isinstance(tur, ClaudeCodeLogToolUseResultRead):
+                file_path = tur.file.filePath
+                content = tur.file.content or ""
+                num_lines = tur.file.numLines
 
-            read_details.append(
-                ClaudeCodeAnalysisReadDetail(
-                    filePath=file_path,
-                    lineCount=num_lines,
-                    characterCount=len(content),
-                    timestamp=ts_int,
+                read_details.append(
+                    ClaudeCodeAnalysisReadDetail(
+                        filePath=file_path,
+                        lineCount=num_lines,
+                        characterCount=len(content),
+                        timestamp=ts_int,
+                    )
                 )
-            )
-            unique_files.add(file_path)
-            total_read_characters += len(content)
+                unique_files.add(file_path)
+                total_read_characters += len(content)
 
-        # Write (create) result
-        elif isinstance(tur, ClaudeCodeLogToolUseResultCreate):
-            file_path = tur.filePath
-            content = tur.content or ""
-            line_count = len(content.splitlines())
+            # Write (create) result
+            elif isinstance(tur, ClaudeCodeLogToolUseResultCreate):
+                file_path = tur.filePath
+                content = tur.content or ""
+                line_count = len(content.splitlines())
 
-            write_details.append(
-                ClaudeCodeAnalysisWriteDetail(
-                    filePath=file_path,
-                    lineCount=line_count,
-                    characterCount=len(content),
-                    timestamp=ts_int,
-                    content=content,
+                write_details.append(
+                    ClaudeCodeAnalysisWriteDetail(
+                        filePath=file_path,
+                        lineCount=line_count,
+                        characterCount=len(content),
+                        timestamp=ts_int,
+                        content=content,
+                    )
                 )
-            )
-            unique_files.add(file_path)
-            total_write_lines += line_count
-            total_write_characters += len(content)
+                unique_files.add(file_path)
+                total_write_lines += line_count
+                total_write_characters += len(content)
 
-        # Edit result (applyDiff)
-        elif isinstance(tur, ClaudeCodeLogToolUseResultEdit):
-            file_path = tur.filePath
-            new_s = tur.newString or ""
-            old_s = tur.oldString or ""
-            line_count = len(new_s.splitlines())
+            # Edit result (applyDiff)
+            elif isinstance(tur, ClaudeCodeLogToolUseResultEdit):
+                file_path = tur.filePath
+                new_s = tur.newString or ""
+                old_s = tur.oldString or ""
+                line_count = len(new_s.splitlines())
 
-            apply_diff_details.append(
-                ClaudeCodeAnalysisApplyDiffDetail(
-                    filePath=file_path,
-                    lineCount=line_count,
-                    characterCount=len(new_s),
-                    timestamp=ts_int,
-                    old_string=old_s,
-                    new_string=new_s,
+                apply_diff_details.append(
+                    ClaudeCodeAnalysisApplyDiffDetail(
+                        filePath=file_path,
+                        lineCount=line_count,
+                        characterCount=len(new_s),
+                        timestamp=ts_int,
+                        old_string=old_s,
+                        new_string=new_s,
+                    )
                 )
-            )
-            unique_files.add(file_path)
-            total_diff_characters += len(new_s)
+                unique_files.add(file_path)
+                total_diff_characters += len(new_s)
 
-    record = ClaudeCodeAnalysisRecord(
-        totalUniqueFiles=len(unique_files),
-        totalWriteLines=total_write_lines,
-        totalReadCharacters=total_read_characters,
-        totalWriteCharacters=total_write_characters,
-        totalDiffCharacters=total_diff_characters,
-        writeToFileDetails=write_details,
-        readFileDetails=read_details,
-        applyDiffDetails=apply_diff_details,
-        runCommandDetails=run_details,
-        toolCallCounts=tool_counts,
-        taskId=task_id,
-        timestamp=last_ts_int,
-        folderPath=folder_path,
-        gitRemoteUrl=git_remote_url,
-    )
+        record = ClaudeCodeAnalysisRecord(
+            totalUniqueFiles=len(unique_files),
+            totalWriteLines=total_write_lines,
+            totalReadCharacters=total_read_characters,
+            totalWriteCharacters=total_write_characters,
+            totalDiffCharacters=total_diff_characters,
+            writeToFileDetails=write_details,
+            readFileDetails=read_details,
+            applyDiffDetails=apply_diff_details,
+            runCommandDetails=run_details,
+            toolCallCounts=tool_counts,
+            taskId=task_id,
+            timestamp=last_ts_int,
+            folderPath=folder_path,
+            gitRemoteUrl=git_remote_url,
+        )
 
-    analysis = ClaudeCodeAnalysis(records=[record])
+        analysis = ClaudeCodeAnalysis(records=[record])
 
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(analysis.model_dump(mode="json"), f, ensure_ascii=False, indent=4)
+        with output_path.open("w", encoding="utf-8") as f:
+            json.dump(analysis.model_dump(mode="json"), f, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
-    analyze_conversations()
+    input_path = "./examples/original"
+    analyze_conversations(input_path=input_path)
